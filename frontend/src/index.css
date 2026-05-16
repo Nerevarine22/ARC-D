@@ -1,0 +1,135 @@
+@import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;600;700&family=Inter:wght@300;400;500;600;700&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    box-sizing: border-box;
+  }
+
+  html {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+  }
+
+  body {
+    @apply bg-bg-primary text-text-primary font-sans;
+    background-image:
+      radial-gradient(ellipse at 10% 0%, rgba(59, 130, 246, 0.04) 0%, transparent 50%),
+      radial-gradient(ellipse at 90% 100%, rgba(124, 58, 237, 0.04) 0%, transparent 50%);
+    min-height: 100vh;
+  }
+
+  ::-webkit-scrollbar {
+    width: 4px;
+    height: 4px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-bg-secondary;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-border-strong rounded-full;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-text-muted;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-bg-card border border-border-subtle rounded-sm;
+  }
+
+  .card-header {
+    @apply flex items-center justify-between px-4 py-3 border-b border-border-subtle;
+  }
+
+  .card-label {
+    @apply text-xs font-mono font-medium tracking-widest uppercase text-text-secondary;
+  }
+
+  .stat-value {
+    @apply font-mono font-bold text-text-primary tabular-nums;
+  }
+
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 text-xs font-mono font-medium rounded-sm;
+  }
+
+  .badge-defi {
+    @apply badge bg-cat-defi-dim text-purple-300 border border-purple-800/30;
+  }
+
+  .badge-security {
+    @apply badge bg-cat-security-dim text-red-300 border border-red-800/30;
+  }
+
+  .badge-parsing {
+    @apply badge bg-cat-parsing-dim text-cyan-300 border border-cyan-800/30;
+  }
+
+  .badge-infra {
+    @apply badge bg-cat-infra-dim text-amber-300 border border-amber-800/30;
+  }
+
+  .live-dot {
+    @apply inline-block w-2 h-2 rounded-full bg-status-green;
+    box-shadow: 0 0 6px #00d084;
+    animation: pulse-glow 2s ease-in-out infinite;
+  }
+
+  .terminal-row {
+    @apply flex items-start gap-3 py-2.5 border-b border-border-subtle/50 font-mono text-xs;
+    animation: slideIn 0.3s ease-out;
+  }
+
+  .terminal-row:last-child {
+    @apply border-b-0;
+  }
+}
+
+@layer utilities {
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  .text-gradient-green {
+    background: linear-gradient(135deg, #00d084 0%, #00a86b 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .text-gradient-red {
+    background: linear-gradient(135deg, #ff4757 0%, #cc3344 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  .glow-green {
+    text-shadow: 0 0 20px rgba(0, 208, 132, 0.5);
+  }
+
+  .border-glow-green {
+    box-shadow: 0 0 0 1px rgba(0, 208, 132, 0.2), inset 0 0 20px rgba(0, 208, 132, 0.02);
+  }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; box-shadow: 0 0 6px #00d084; }
+  50% { opacity: 0.6; box-shadow: 0 0 12px #00d084; }
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes countUp {
+  from { opacity: 0.5; transform: scale(0.98); }
+  to   { opacity: 1;   transform: scale(1); }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "arc-watchdog-backend",
+  "version": "1.0.0",
+  "description": "Arc Market Watchdog — Blockchain listener + AI analyzer backend",
+  "main": "dist/index.js",
+  "type": "module",
+  "scripts": {
+    "dev": "ts-node --esm src/index.ts",
+    "dev:nodemon": "nodemon --exec ts-node --esm src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "simulate": "ts-node --esm src/simulator.ts"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.21.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "ethers": "^6.13.4",
+    "express": "^4.21.2",
+    "uuid": "^11.0.5"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.0",
+    "@types/node": "^22.10.10",
+    "@types/uuid": "^10.0.0",
+    "nodemon": "^3.1.9",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
+  }
+}
