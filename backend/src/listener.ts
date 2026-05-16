@@ -50,6 +50,9 @@ async function processFailedJob(
     }
 
     // Analyze with Gemini AI
+    console.log(`[Listener] ⏳ Waiting 4.5s to respect Gemini API limits...`);
+    await new Promise(resolve => setTimeout(resolve, 4500));
+    
     console.log(`[Listener] 🤖 Sending to Gemini for analysis...`);
     const analysis = await analyzeSpec(description, bountyAmount);
     console.log(`[Listener] ✅ Analysis: category=${analysis.category} | pain=${analysis.pain_score} | skills=${analysis.missing_skills.join(', ')}`);

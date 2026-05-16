@@ -92,7 +92,7 @@ export async function analyzeSpec(
 
   try {
     const model = client.getGenerativeModel({
-      model: 'gemini-2.0-flash',
+      model: 'gemini-1.5-flash',
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: responseSchema as any,
@@ -103,7 +103,10 @@ export async function analyzeSpec(
 
     const prompt = buildPrompt(rawSpec, bountyUsdc, isValidation);
     const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    let text = result.response.text();
+    if (text.startsWith('```')) {
+      text = text.replace(/^```(json)?\n?/, '').replace(/\n?```$/, '');
+    }
 
     const parsed = JSON.parse(text) as GeminiAnalysis;
 
