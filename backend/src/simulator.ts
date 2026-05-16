@@ -55,7 +55,7 @@ async function simulateTick(): Promise<void> {
 
   console.log(`[Simulator] 🤖 Analyzing with Gemini...`);
   const analysis = await analyzeSpec(rawSpec, bountyAmount);
-  console.log(`[Simulator] ✅ ${analysis.category} | pain=${analysis.pain_score} | ${analysis.summary_ua.slice(0, 80)}...`);
+  console.log(`[Simulator] ✅ ${analysis.category} | pain=${analysis.pain_score} | ${analysis.summary_en.slice(0, 80)}...`);
 
   saveJob({
     id: uuidv4(),

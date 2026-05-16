@@ -6,7 +6,7 @@ export interface GeminiAnalysis {
   category: 'DeFi' | 'Security' | 'Data-Parsing' | 'Infrastructure';
   missing_skills: string[];
   pain_score: number; // 1–10
-  summary_ua: string;
+  summary_en: string;
 }
 
 export interface FailedJob {
@@ -56,6 +56,13 @@ function saveToDisk(): void {
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
+
+export function hasJobId(jobId: string): boolean {
+  for (const job of jobs.values()) {
+    if (job.jobId === jobId) return true;
+  }
+  return false;
+}
 
 export function saveJob(job: FailedJob): void {
   jobs.set(job.id, job);

@@ -78,7 +78,7 @@ export default function LiveTerminalFeed({ jobs }: Props) {
 
       {/* Terminal header bar */}
       <div className="grid grid-cols-[80px_70px_100px_80px_1fr] gap-2 px-4 py-1.5 border-b border-border-subtle bg-bg-secondary">
-        {['TIME', 'JOB ID', 'CATEGORY', 'PAIN', 'SUMMARY (UA)'].map((h) => (
+        {['TIME', 'JOB ID', 'CATEGORY', 'PAIN', 'SUMMARY (EN)'].map((h) => (
           <div key={h} className="text-xs font-mono font-medium text-text-muted uppercase tracking-wider truncate">
             {h}
           </div>
@@ -141,10 +141,10 @@ export default function LiveTerminalFeed({ jobs }: Props) {
                   </div>
                 </div>
 
-                {/* Summary UA */}
+                {/* Summary EN */}
                 <div className="flex-1 min-w-0">
                   <div className="text-text-primary leading-tight line-clamp-2">
-                    {job.analysis.summary_ua}
+                    {job.analysis.summary_en}
                   </div>
                   <div className="flex flex-wrap gap-1 mt-1">
                     {job.analysis.missing_skills.slice(0, 3).map((skill) => (

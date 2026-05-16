@@ -1,73 +1,75 @@
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { ethers } from 'ethers';
 import { v4 as uuidv4 } from 'uuid';
 import { config } from './config.js';
-import { fetchSpec } from './ipfs.js';
 import { analyzeSpec } from './analyzer.js';
-import { saveJob } from './db.js';
+import { saveJob, hasJobId } from './db.js';
 
-// ─── ERC-8183 Human-Readable ABI ─────────────────────────────────────────────
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
-const JOB_REGISTRY_ABI = [
-  // Events
-  'event JobClosed(uint256 indexed jobId, uint8 indexed reasonCode)',
-  'event JobCreated(uint256 indexed jobId, address indexed owner, string ipfsHash, uint256 bountyAmount)',
-  // View functions
-  'function getJobDetails(uint256 jobId) view returns (address owner, string ipfsHash, uint256 bountyAmount, uint256 deadline, uint8 status)',
-  'function getJobCount() view returns (uint256)',
-];
-
-const REASON_LABELS: Record<number, string> = {
-  0: 'Completed',
-  1: 'Cancelled',
-  2: 'Expired',
-};
+// Load the AgenticCommerce ABI
+const ABI_PATH = path.resolve(__dirname, '../../AgenticCommerceABI.json');
+const AGENTIC_COMMERCE_ABI = JSON.parse(fs.readFileSync(ABI_PATH, 'utf-8'));
 
 // ─── Pipeline: Process a single job ──────────────────────────────────────────
 
-async function processClosedJob(
+async function processFailedJob(
   contract: ethers.Contract,
   jobId: bigint,
+  reasonLabel: string,
   reasonCode: number
 ): Promise<void> {
-  const label = REASON_LABELS[reasonCode] ?? 'Unknown';
-  console.log(`\n[Listener] 🔴 JobClosed | ID: ${jobId} | Reason: ${label} (${reasonCode})`);
+  const jId = jobId.toString();
+  if (hasJobId(jId)) {
+    return;
+  }
+  
+  console.log(`\n[Listener] 🔴 ${reasonLabel} | ID: ${jId}`);
 
   try {
-    // Fetch job details from contract
-    const details = await contract.getJobDetails(jobId);
-    const [owner, ipfsHash, bountyAmountRaw, deadlineRaw, statusRaw] = details;
+    // Fetch real job details from contract
+    const jobData = await contract.getJob(jobId);
+    
+    // Extract budget and format it (assuming 6 decimals USDC)
+    const budgetRaw = jobData.budget;
+    const bountyAmount = Number(ethers.formatUnits(budgetRaw, 6));
+    
+    const owner = jobData.client;
+    const deadline = Number(jobData.expiredAt);
+    const description = jobData.description;
 
-    // Convert bounty from wei (assuming 6 decimals for USDC)
-    const bountyAmount = Number(ethers.formatUnits(bountyAmountRaw, 6));
-    const deadline = Number(deadlineRaw);
+    console.log(`[Listener] 📋 Owner: ${owner} | Budget: $${bountyAmount.toFixed(2)} USDC`);
+    console.log(`[Listener] 📄 Description length: ${description.length} chars`);
 
-    console.log(`[Listener] 📋 Owner: ${owner} | Bounty: $${bountyAmount.toFixed(2)} USDC | IPFS: ${ipfsHash}`);
-
-    // Fetch raw spec from IPFS (or mock)
-    const rawSpec = await fetchSpec(ipfsHash);
-    console.log(`[Listener] 📄 Spec fetched (${rawSpec.length} chars)`);
+    if (!description || description.trim() === '') {
+       console.log(`[Listener] ⚠️  Skipping job ${jId} because description is empty.`);
+       return;
+    }
 
     // Analyze with Gemini AI
     console.log(`[Listener] 🤖 Sending to Gemini for analysis...`);
-    const analysis = await analyzeSpec(rawSpec, bountyAmount);
+    const analysis = await analyzeSpec(description, bountyAmount);
     console.log(`[Listener] ✅ Analysis: category=${analysis.category} | pain=${analysis.pain_score} | skills=${analysis.missing_skills.join(', ')}`);
 
     // Save to DB
     saveJob({
       id: uuidv4(),
-      jobId: jobId.toString(),
+      jobId: jId,
       owner,
       bountyAmount,
       deadline,
-      rawSpec: rawSpec.slice(0, 2000), // store truncated
-      ipfsHash,
+      rawSpec: description.slice(0, 2000), // store truncated
+      ipfsHash: 'onchain-description', // no IPFS anymore, data is in string
       reasonCode,
       analysis,
       processedAt: new Date().toISOString(),
       source: 'onchain',
     });
   } catch (err) {
-    console.error(`[Listener] ❌ Error processing job ${jobId}:`, err);
+    console.error(`[Listener] ❌ Error processing job ${jId}:`, err);
   }
 }
 
@@ -83,49 +85,83 @@ export async function startListener(): Promise<void> {
     console.log(`[Listener] ✅ Connected to network: chainId=${network.chainId}`);
   } catch (err) {
     console.warn('[Listener] ⚠️  Cannot connect to Arc Testnet RPC. Listener will run in offline mode.');
-    console.warn('[Listener]    Simulator will still provide data for the dashboard.');
     return;
   }
 
   const contract = new ethers.Contract(
     config.JOB_REGISTRY_ADDRESS,
-    JOB_REGISTRY_ABI,
+    AGENTIC_COMMERCE_ABI,
     provider
   );
 
-  // Listen to real-time events
-  contract.on('JobClosed', async (jobId: bigint, reasonCode: bigint) => {
-    const code = Number(reasonCode);
-    // Only process Cancelled (1) and Expired (2)
-    if (code === config.REASON_CODES.CANCELLED || code === config.REASON_CODES.EXPIRED) {
-      await processClosedJob(contract, jobId, code);
-    } else {
-      console.log(`[Listener] ℹ️  JobClosed ID=${jobId} reasonCode=${code} (Completed — skipping)`);
-    }
+  // Listen to live events
+  contract.on('JobExpired', async (jobId: bigint) => {
+    await processFailedJob(contract, jobId, 'JobExpired', 2);
   });
 
-  console.log(`[Listener] 👂 Listening for JobClosed events on ${config.JOB_REGISTRY_ADDRESS}`);
+  contract.on('Refunded', async (jobId: bigint, client: string, amount: bigint) => {
+    await processFailedJob(contract, jobId, 'Refunded', 1);
+  });
 
-  // Also scan recent historical events (last 1000 blocks)
+  console.log(`[Listener] 👂 Listening for JobExpired & Refunded events on ${config.JOB_REGISTRY_ADDRESS}`);
+
+  // Scan historical events in batches
   try {
     const currentBlock = await provider.getBlockNumber();
-    const fromBlock = Math.max(0, currentBlock - 1000);
-    console.log(`[Listener] 📜 Scanning historical events from block ${fromBlock} to ${currentBlock}...`);
+    const START_BLOCK = 33908011;
+    const BATCH_SIZE = 4000;
 
-    const filter = contract.filters.JobClosed();
-    const events = await contract.queryFilter(filter, fromBlock, currentBlock);
-    console.log(`[Listener] 📜 Found ${events.length} historical JobClosed events`);
+    console.log(`[Listener] 📜 Initiating deep scan from block ${START_BLOCK} to ${currentBlock} (Chunks of ${BATCH_SIZE})...`);
 
-    for (const event of events) {
-      if (event instanceof ethers.EventLog) {
-        const [jobId, reasonCode] = event.args;
-        const code = Number(reasonCode);
-        if (code === config.REASON_CODES.CANCELLED || code === config.REASON_CODES.EXPIRED) {
-          await processClosedJob(contract, jobId, code);
+    let fromBlock = START_BLOCK;
+    while (fromBlock <= currentBlock) {
+      const toBlock = Math.min(fromBlock + BATCH_SIZE - 1, currentBlock);
+      
+      try {
+        const expiredFilter = contract.filters.JobExpired();
+        const refundedFilter = contract.filters.Refunded();
+        
+        const [expiredEvents, refundedEvents] = await Promise.all([
+          contract.queryFilter(expiredFilter, fromBlock, toBlock),
+          contract.queryFilter(refundedFilter, fromBlock, toBlock)
+        ]);
+        
+        console.log(`[Listener] 🔍 Scanning blocks from ${fromBlock} to ${toBlock}... Found: JobExpired=${expiredEvents.length}, Refunded=${refundedEvents.length}`);
+
+        // Process JobExpired
+        if (expiredEvents.length > 0) {
+          for (const event of expiredEvents) {
+            if (event instanceof ethers.EventLog) {
+              const jobId = event.args[0] as bigint;
+              await processFailedJob(contract, jobId, 'JobExpired', 2);
+            }
+          }
         }
+
+        // Process Refunded
+        if (refundedEvents.length > 0) {
+          for (const event of refundedEvents) {
+            if (event instanceof ethers.EventLog) {
+              const jobId = event.args[0] as bigint;
+              await processFailedJob(contract, jobId, 'Refunded', 1);
+            }
+          }
+        }
+        
+        // Move to next batch only if successful
+        fromBlock += BATCH_SIZE;
+
+        // Small delay between successful chunks to be polite to the RPC
+        await new Promise(r => setTimeout(r, 500));
+
+      } catch (err: any) {
+        console.warn(`[Listener] ⚠️  RPC Error range ${fromBlock}-${toBlock}: ${err.message?.substring(0, 100)}. Retrying in 2s...`);
+        // If it fails, wait 2 seconds and retry the SAME batch
+        await new Promise(r => setTimeout(r, 2000));
       }
     }
+    console.log(`[Listener] 📜 Deep scan completed.`);
   } catch (err) {
-    console.warn('[Listener] ⚠️  Could not scan historical events:', err);
+    console.warn('[Listener] ⚠️  Could not initiate deep scan:', err);
   }
 }

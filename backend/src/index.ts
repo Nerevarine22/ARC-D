@@ -17,7 +17,7 @@ async function main(): Promise<void> {
   await startListener();
 
   // Start demo simulator (always runs for dashboard demo)
-  startSimulator();
+  // startSimulator();
 
   // Graceful shutdown
   process.on('SIGTERM', () => {

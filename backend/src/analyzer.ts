@@ -35,17 +35,35 @@ const responseSchema = {
       type: SchemaType.NUMBER,
       description: 'Market pain score from 1 (trivial) to 10 (extremely rare/specialized)',
     },
-    summary_ua: {
+    summary_en: {
       type: SchemaType.STRING,
-      description: 'One-sentence summary of the job in Ukrainian language',
+      description: 'One-sentence summary of the job in English language',
     },
   },
-  required: ['category', 'missing_skills', 'pain_score', 'summary_ua'],
+  required: ['category', 'missing_skills', 'pain_score', 'summary_en'],
 };
 
 // ─── Prompt Builder ───────────────────────────────────────────────────────────
 
-function buildPrompt(rawSpec: string, bountyUsdc: number): string {
+function buildPrompt(rawSpec: string, bountyUsdc: number, isValidation: boolean): string {
+  if (isValidation) {
+    return `You are an expert Web3 talent market analyst. An autonomous AI agent attempted to complete a task, but the execution FAILED validation.
+    
+Analyze the following validation feedback/logs and extract structured intelligence about WHY this agent failed and what technical skills it is missing:
+
+--- VALIDATION FEEDBACK ---
+${rawSpec.slice(0, 4000)}
+--- END OF FEEDBACK ---
+
+Return a JSON object with exactly these fields:
+1. "category": Classify into exactly one of: "DeFi", "Security", "Data-Parsing", "Infrastructure"
+2. "missing_skills": Array of 3-7 specific technical skills the agent lacked to succeed. Use kebab-case.
+3. "pain_score": Integer 1-10 representing how complex this failure is (10 = extremely difficult technical barrier).
+4. "summary_en": Exactly ONE sentence in English language summarizing WHY the agent failed. Be specific about the technical error.
+
+Be analytical and precise. Focus on the TECHNICAL SKILLS GAP. Return ONLY valid JSON, no markdown, no explanation.`;
+  }
+
   return `You are an expert Web3 talent market analyst. An autonomous AI agent job was posted on a blockchain registry with a bounty of ${bountyUsdc.toFixed(2)} USDC, but it FAILED — it was either cancelled by the owner or expired without any agent completing it. This indicates unmet demand in the AI agent marketplace.
 
 Analyze the following job specification and extract structured intelligence about WHY this job likely failed and what skills are missing from the market:
@@ -58,7 +76,7 @@ Return a JSON object with exactly these fields:
 1. "category": Classify into exactly one of: "DeFi", "Security", "Data-Parsing", "Infrastructure"
 2. "missing_skills": Array of 3-7 specific technical skills that this job required but that are scarce in the market. Use kebab-case (e.g., "move-lang", "zk-stark-verification", "l3-rollup-parsing", "flashbots-bundle-building")
 3. "pain_score": Integer 1-10 representing how rare/specialized these skills are (10 = almost no agents in the market can do this)
-4. "summary_ua": Exactly ONE sentence in Ukrainian language summarizing what this job required and why it failed. Be specific about the technology.
+4. "summary_en": Exactly ONE sentence in English language summarizing what this job required and why it failed. Be specific about the technology.
 
 Be analytical and precise. Focus on the TECHNICAL SKILLS GAP, not just the topic. Return ONLY valid JSON, no markdown, no explanation.`;
 }
@@ -67,7 +85,8 @@ Be analytical and precise. Focus on the TECHNICAL SKILLS GAP, not just the topic
 
 export async function analyzeSpec(
   rawSpec: string,
-  bountyUsdc: number
+  bountyUsdc: number,
+  isValidation: boolean = false
 ): Promise<GeminiAnalysis> {
   const client = getClient();
 
@@ -82,7 +101,7 @@ export async function analyzeSpec(
       },
     });
 
-    const prompt = buildPrompt(rawSpec, bountyUsdc);
+    const prompt = buildPrompt(rawSpec, bountyUsdc, isValidation);
     const result = await model.generateContent(prompt);
     const text = result.response.text();
 
@@ -97,8 +116,8 @@ export async function analyzeSpec(
       parsed.missing_skills = ['unspecified-skill'];
     }
     parsed.pain_score = Math.max(1, Math.min(10, Math.round(parsed.pain_score)));
-    if (!parsed.summary_ua || typeof parsed.summary_ua !== 'string') {
-      parsed.summary_ua = 'Завдання не вдалося виконати через нестачу спеціалізованих навичок на ринку.';
+    if (!parsed.summary_en || typeof parsed.summary_en !== 'string') {
+      parsed.summary_en = 'Task could not be completed due to a lack of specialized skills in the market.';
     }
 
     return parsed;
@@ -120,6 +139,6 @@ function buildFallbackAnalysis(rawSpec: string, bountyUsdc: number): GeminiAnaly
     category,
     missing_skills: ['specialized-onchain-expertise', 'autonomous-agent-development', 'web3-integration'],
     pain_score: bountyUsdc > 2000 ? 8 : bountyUsdc > 500 ? 6 : 4,
-    summary_ua: 'Завдання залишилося невиконаним через відсутність агентів з необхідною спеціалізацією в реєстрі.',
+    summary_en: 'Task remained unfulfilled due to the absence of agents with the required specialization in the registry.',
   };
 }

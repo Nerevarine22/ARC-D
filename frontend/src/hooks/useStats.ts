@@ -7,7 +7,7 @@ export interface GeminiAnalysis {
   category: 'DeFi' | 'Security' | 'Data-Parsing' | 'Infrastructure';
   missing_skills: string[];
   pain_score: number;
-  summary_ua: string;
+  summary_en: string;
 }
 
 export interface FailedJob {

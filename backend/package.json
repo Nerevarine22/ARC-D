@@ -5,11 +5,11 @@
   "main": "dist/index.js",
   "type": "module",
   "scripts": {
-    "dev": "ts-node --esm src/index.ts",
-    "dev:nodemon": "nodemon --exec ts-node --esm src/index.ts",
+    "dev": "tsx src/index.ts",
+    "dev:nodemon": "nodemon --exec tsx src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
-    "simulate": "ts-node --esm src/simulator.ts"
+    "simulate": "tsx src/simulator.ts"
   },
   "dependencies": {
     "@google/generative-ai": "^0.21.0",
@@ -26,6 +26,7 @@
     "@types/uuid": "^10.0.0",
     "nodemon": "^3.1.9",
     "ts-node": "^10.9.2",
+    "tsx": "^4.22.0",
     "typescript": "^5.7.3"
   }
 }
