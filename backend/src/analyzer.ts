@@ -92,7 +92,7 @@ export async function analyzeSpec(
 
   try {
     const model = client.getGenerativeModel({
-      model: 'gemini-1.5-flash',
+      model: 'gemini-3.1-flash-lite',
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: responseSchema as any,

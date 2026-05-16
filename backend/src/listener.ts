@@ -97,27 +97,25 @@ export async function startListener(): Promise<void> {
     provider
   );
 
-  // Listen to live events
-  contract.on('JobExpired', async (jobId: bigint) => {
-    await processFailedJob(contract, jobId, 'JobExpired', 2);
-  });
+  console.log(`[Listener] 👂 Polling for JobExpired & Refunded events on ${config.JOB_REGISTRY_ADDRESS}`);
 
-  contract.on('Refunded', async (jobId: bigint, client: string, amount: bigint) => {
-    await processFailedJob(contract, jobId, 'Refunded', 1);
-  });
-
-  console.log(`[Listener] 👂 Listening for JobExpired & Refunded events on ${config.JOB_REGISTRY_ADDRESS}`);
-
-  // Scan historical events in batches
+  // Scan historical events in batches, and continue polling for live events
   try {
-    const currentBlock = await provider.getBlockNumber();
     const START_BLOCK = 33908011;
     const BATCH_SIZE = 4000;
 
-    console.log(`[Listener] 📜 Initiating deep scan from block ${START_BLOCK} to ${currentBlock} (Chunks of ${BATCH_SIZE})...`);
+    console.log(`[Listener] 📜 Initiating deep scan from block ${START_BLOCK} (Chunks of ${BATCH_SIZE})...`);
 
     let fromBlock = START_BLOCK;
-    while (fromBlock <= currentBlock) {
+    while (true) {
+      const currentBlock = await provider.getBlockNumber().catch(() => fromBlock);
+      
+      if (fromBlock > currentBlock) {
+        // We caught up to the network head. Wait 15 seconds before polling again.
+        await new Promise(r => setTimeout(r, 15000));
+        continue;
+      }
+
       const toBlock = Math.min(fromBlock + BATCH_SIZE - 1, currentBlock);
       
       try {
