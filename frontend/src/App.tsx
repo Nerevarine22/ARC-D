@@ -1,7 +1,9 @@
+import { useState, useEffect } from 'react';
 import { useStats } from './hooks/useStats';
 import LeftOnTableCounter from './components/LeftOnTableCounter';
 import TopMissingCapabilities from './components/TopMissingCapabilities';
 import LiveTerminalFeed from './components/LiveTerminalFeed';
+import AdminPanel from './components/AdminPanel';
 
 function StatusBar({ isConnected, lastUpdate, totalJobs, error }: {
   isConnected: boolean;
@@ -39,6 +41,24 @@ function StatusBar({ isConnected, lastUpdate, totalJobs, error }: {
 
 export default function App() {
   const { stats, isConnected, lastUpdate, error, isFlashing } = useStats(3000);
+  const [view, setView] = useState<'dashboard' | 'admin'>('dashboard');
+
+  useEffect(() => {
+    const handleHash = () => {
+      if (window.location.hash === '#admin') {
+        setView('admin');
+      } else {
+        setView('dashboard');
+      }
+    };
+    window.addEventListener('hashchange', handleHash);
+    handleHash();
+    return () => window.removeEventListener('hashchange', handleHash);
+  }, []);
+
+  if (view === 'admin') {
+    return <AdminPanel stats={stats} firestoreConnected={isConnected} />;
+  }
 
   return (
     <div className="min-h-screen flex flex-col bg-bg-primary">
@@ -76,8 +96,14 @@ export default function App() {
             ))}
           </div>
 
-          {/* Right: ERC badge */}
+          {/* Right: badges */}
           <div className="flex items-center gap-2">
+            <a
+              href="#admin"
+              className="badge bg-status-red/10 hover:bg-status-red/20 border border-status-red/30 text-status-red text-xs transition-colors cursor-pointer"
+            >
+              [ Admin ]
+            </a>
             <span className="badge bg-bg-tertiary border border-border-default text-text-secondary text-xs">
               ERC-8183
             </span>
@@ -121,7 +147,7 @@ export default function App() {
       {/* ── Footer ──────────────────────────────────────────── */}
       <footer className="border-t border-border-subtle px-6 py-2 flex items-center justify-between">
         <span className="text-xs font-mono text-text-muted">
-          Arc Market Watchdog v1.0 · ERC-8183 · Arc Testnet
+          Arc Market Watchdog v1.0 · ERC-8183 · Arc Testnet · <a href="#admin" className="hover:text-status-red text-text-muted transition-colors font-bold">[ ADMIN CONSOLE ]</a>
         </span>
         <span className="text-xs font-mono text-text-muted">
           Powered by Google Gemini Flash · Unmet Demand Analytics

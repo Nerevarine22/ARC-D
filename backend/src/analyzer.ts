@@ -81,6 +81,20 @@ Return a JSON object with exactly these fields:
 Be analytical and precise. Focus on the TECHNICAL SKILLS GAP, not just the topic. Return ONLY valid JSON, no markdown, no explanation.`;
 }
 
+export interface GeminiTelemetry {
+  lastCallTime: string | null;
+  lastCallStatus: 'success' | 'error' | null;
+  totalCalls: number;
+  totalErrors: number;
+}
+
+export const telemetry: GeminiTelemetry = {
+  lastCallTime: null,
+  lastCallStatus: null,
+  totalCalls: 0,
+  totalErrors: 0
+};
+
 // ─── Main Analyzer ────────────────────────────────────────────────────────────
 
 export async function analyzeSpec(
@@ -89,6 +103,9 @@ export async function analyzeSpec(
   isValidation: boolean = false
 ): Promise<GeminiAnalysis> {
   const client = getClient();
+
+  telemetry.totalCalls++;
+  telemetry.lastCallTime = new Date().toISOString();
 
   try {
     const model = client.getGenerativeModel({
@@ -123,9 +140,12 @@ export async function analyzeSpec(
       parsed.summary_en = 'Task could not be completed due to a lack of specialized skills in the market.';
     }
 
+    telemetry.lastCallStatus = 'success';
     return parsed;
   } catch (err) {
     console.error('[Gemini] Analysis error:', err);
+    telemetry.totalErrors++;
+    telemetry.lastCallStatus = 'error';
     // Return deterministic fallback so the pipeline doesn't break
     return buildFallbackAnalysis(rawSpec, bountyUsdc);
   }

@@ -4,6 +4,8 @@ import https from 'https';
 import http from 'http';
 import { config } from './config.js';
 import { getStats, getAllJobs, FailedJob } from './db.js';
+import { telemetry as listenerTelemetry } from './listener.js';
+import { telemetry as geminiTelemetry } from './analyzer.js';
 
 const app = express();
 app.use(cors());
@@ -22,6 +24,8 @@ app.get('/api/health', (_req, res) => {
     status: 'ok',
     uptime: Math.floor((Date.now() - startTime) / 1000),
     timestamp: new Date().toISOString(),
+    listener: listenerTelemetry,
+    gemini: geminiTelemetry,
   });
 });
 

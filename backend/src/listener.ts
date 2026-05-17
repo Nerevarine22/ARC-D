@@ -76,18 +76,40 @@ async function processFailedJob(
   }
 }
 
+export interface ListenerTelemetry {
+  lastScannedBlock: number;
+  currentNetworkBlock: number;
+  scanProgressPct: number;
+  isActive: boolean;
+  rpcConnected: boolean;
+}
+
+export const telemetry: ListenerTelemetry = {
+  lastScannedBlock: 33908011,
+  currentNetworkBlock: 33908011,
+  scanProgressPct: 0,
+  isActive: false,
+  rpcConnected: false
+};
+
+const START_BLOCK = 33908011;
+
 // ─── Blockchain Listener ──────────────────────────────────────────────────────
 
 export async function startListener(): Promise<void> {
   console.log('[Listener] 🔗 Connecting to Arc Testnet RPC:', config.ARC_RPC_URL);
 
+  telemetry.isActive = true;
   let provider: ethers.JsonRpcProvider;
   try {
     provider = new ethers.JsonRpcProvider(config.ARC_RPC_URL);
     const network = await provider.getNetwork();
     console.log(`[Listener] ✅ Connected to network: chainId=${network.chainId}`);
+    telemetry.rpcConnected = true;
   } catch (err) {
     console.warn('[Listener] ⚠️  Cannot connect to Arc Testnet RPC. Listener will run in offline mode.');
+    telemetry.rpcConnected = false;
+    telemetry.isActive = false;
     return;
   }
 
@@ -101,7 +123,6 @@ export async function startListener(): Promise<void> {
 
   // Scan historical events in batches, and continue polling for live events
   try {
-    const START_BLOCK = 33908011;
     const BATCH_SIZE = 4000;
 
     console.log(`[Listener] 📜 Initiating deep scan from block ${START_BLOCK} (Chunks of ${BATCH_SIZE})...`);
@@ -110,7 +131,11 @@ export async function startListener(): Promise<void> {
     while (true) {
       const currentBlock = await provider.getBlockNumber().catch(() => fromBlock);
       
+      telemetry.currentNetworkBlock = currentBlock;
+      
       if (fromBlock > currentBlock) {
+        telemetry.lastScannedBlock = currentBlock;
+        telemetry.scanProgressPct = 100;
         // We caught up to the network head. Wait 15 seconds before polling again.
         await new Promise(r => setTimeout(r, 15000));
         continue;
@@ -118,6 +143,11 @@ export async function startListener(): Promise<void> {
 
       const toBlock = Math.min(fromBlock + BATCH_SIZE - 1, currentBlock);
       
+      telemetry.lastScannedBlock = toBlock;
+      const total = currentBlock - START_BLOCK;
+      const scanned = toBlock - START_BLOCK;
+      telemetry.scanProgressPct = total > 0 ? parseFloat(Math.min((scanned / total) * 100, 100).toFixed(2)) : 100;
+
       try {
         const expiredFilter = contract.filters.JobExpired();
         const refundedFilter = contract.filters.Refunded();
@@ -164,5 +194,6 @@ export async function startListener(): Promise<void> {
     console.log(`[Listener] 📜 Deep scan completed.`);
   } catch (err) {
     console.warn('[Listener] ⚠️  Could not initiate deep scan:', err);
+    telemetry.isActive = false;
   }
 }
