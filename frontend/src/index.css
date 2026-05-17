@@ -82,7 +82,7 @@
   }
 
   .terminal-row {
-    @apply flex items-start gap-3 py-2.5 border-b border-border-subtle/50 font-mono text-xs;
+    @apply grid grid-cols-[85px_75px_120px_90px_1fr] gap-4 items-start py-2.5 border-b border-border-subtle/50 font-mono text-xs;
     animation: slideIn 0.3s ease-out;
   }
 

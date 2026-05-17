@@ -77,8 +77,8 @@ export default function LiveTerminalFeed({ jobs }: Props) {
       </div>
 
       {/* Terminal header bar */}
-      <div className="grid grid-cols-[80px_70px_100px_80px_1fr] gap-2 px-4 py-1.5 border-b border-border-subtle bg-bg-secondary">
-        {['TIME', 'JOB ID', 'CATEGORY', 'PAIN', 'SUMMARY (EN)'].map((h) => (
+      <div className="grid grid-cols-[85px_75px_120px_90px_1fr] gap-4 px-4 py-1.5 border-b border-border-subtle bg-bg-secondary">
+        {['TIME', 'JOB ID', 'CATEGORY', 'PAIN', 'SUMMARY'].map((h) => (
           <div key={h} className="text-xs font-mono font-medium text-text-muted uppercase tracking-wider truncate">
             {h}
           </div>
@@ -112,19 +112,19 @@ export default function LiveTerminalFeed({ jobs }: Props) {
                 className={`terminal-row ${isNew ? 'bg-bg-hover/30' : ''}`}
               >
                 {/* Time */}
-                <div className="w-[80px] shrink-0 text-text-muted">
+                <div className="text-text-muted">
                   <div>{timeAgo(job.processedAt)}</div>
                   <div className={`text-xs ${reason.color}`}>{reason.label}</div>
                 </div>
 
                 {/* Job ID + owner */}
-                <div className="w-[70px] shrink-0">
+                <div>
                   <div className="text-text-accent">#{job.jobId}</div>
                   <div className="text-text-muted text-xs">{truncateAddr(job.owner)}</div>
                 </div>
 
                 {/* Category */}
-                <div className="w-[100px] shrink-0">
+                <div>
                   <span className={CATEGORY_BADGE[job.analysis.category] ?? 'badge bg-bg-tertiary text-text-muted border border-border-default'}>
                     {job.analysis.category}
                   </span>
@@ -134,15 +134,15 @@ export default function LiveTerminalFeed({ jobs }: Props) {
                 </div>
 
                 {/* Pain score */}
-                <div className="w-[80px] shrink-0">
+                <div>
                   <PainBar score={job.analysis.pain_score} />
                   <div className="text-text-muted text-xs mt-1">
                     {job.source === 'simulator' ? '⚡ sim' : '🔗 chain'}
                   </div>
                 </div>
 
-                {/* Summary EN */}
-                <div className="flex-1 min-w-0">
+                {/* Summary */}
+                <div className="min-w-0">
                   <div className="text-text-primary leading-tight line-clamp-2">
                     {job.analysis.summary_en}
                   </div>
