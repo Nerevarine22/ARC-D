@@ -1,5 +1,7 @@
 import express from 'express';
 import cors from 'cors';
+import https from 'https';
+import http from 'http';
 import { config } from './config.js';
 import { getStats, getAllJobs } from './db.js';
 
@@ -72,6 +74,30 @@ app.get('/api/jobs/:jobId', (req, res) => {
   res.json(job);
 });
 
+// Self-pinging mechanism to keep Render free tier awake
+function startSelfPinging(): void {
+  const externalUrl = process.env.RENDER_EXTERNAL_URL;
+  if (!externalUrl) {
+    console.log('[API] 💤 RENDER_EXTERNAL_URL is not set. Skipping self-ping.');
+    return;
+  }
+
+  console.log(`[API] 🔄 Self-pinging enabled for Render Web Service: ${externalUrl}`);
+
+  // Ping every 10 minutes (600,000 ms) to reset Render's sleep timer
+  setInterval(() => {
+    const pingUrl = `${externalUrl}/api/health`;
+    console.log(`[API] 📡 Pinging self at ${pingUrl}...`);
+
+    const client = externalUrl.startsWith('https') ? https : http;
+    client.get(pingUrl, (res) => {
+      console.log(`[API] 📡 Self-ping response status: ${res.statusCode}`);
+    }).on('error', (err) => {
+      console.error('[API] ❌ Self-ping failed:', err.message);
+    });
+  }, 10 * 60 * 1000);
+}
+
 // ─── Server Bootstrap ─────────────────────────────────────────────────────────
 
 export function startApi(): void {
@@ -80,5 +106,8 @@ export function startApi(): void {
     console.log(`[API]    GET /api/health`);
     console.log(`[API]    GET /api/stats`);
     console.log(`[API]    GET /api/jobs`);
+
+    // Activate Render self-ping
+    startSelfPinging();
   });
 }
