@@ -125,12 +125,20 @@ export async function startListener(): Promise<void> {
   try {
     const BATCH_SIZE = 10000;
 
-    // Load last scanned block from Firestore
-    const dbLastScanned = await getLastScannedBlock(START_BLOCK);
+    // Query current block height first
+    const currentBlockAtStart = await provider.getBlockNumber().catch(() => START_BLOCK);
+    telemetry.currentNetworkBlock = currentBlockAtStart;
+
+    // Load last scanned block from Firestore. Use 0 as default to check if empty.
+    const dbLastScanned = await getLastScannedBlock(0);
     console.log(`[Listener] 💾 Last scanned block loaded from database: ${dbLastScanned}`);
 
     let fromBlock = dbLastScanned;
-    if (fromBlock < START_BLOCK) {
+    if (fromBlock === 0) {
+      // If no state exists in database, start from the current block minus a small buffer of 1,000 blocks
+      fromBlock = Math.max(START_BLOCK, currentBlockAtStart - 1000);
+      console.log(`[Listener] ℹ️ No previous scan state found. Starting incrementally from block ${fromBlock} (current network head ${currentBlockAtStart} minus 1,000 blocks buffer)`);
+    } else if (fromBlock < START_BLOCK) {
       fromBlock = START_BLOCK;
     }
 
