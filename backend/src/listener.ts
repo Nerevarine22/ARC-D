@@ -5,7 +5,7 @@ import { ethers } from 'ethers';
 import { v4 as uuidv4 } from 'uuid';
 import { config } from './config.js';
 import { analyzeSpec } from './analyzer.js';
-import { saveJob, hasJobId } from './db.js';
+import { saveJob, hasJobId, getLastScannedBlock, saveLastScannedBlock } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -125,9 +125,17 @@ export async function startListener(): Promise<void> {
   try {
     const BATCH_SIZE = 4000;
 
-    console.log(`[Listener] 📜 Initiating deep scan from block ${START_BLOCK} (Chunks of ${BATCH_SIZE})...`);
+    // Load last scanned block from Firestore
+    const dbLastScanned = await getLastScannedBlock(START_BLOCK);
+    console.log(`[Listener] 💾 Last scanned block loaded from database: ${dbLastScanned}`);
 
-    let fromBlock = START_BLOCK;
+    let fromBlock = dbLastScanned;
+    if (fromBlock < START_BLOCK) {
+      fromBlock = START_BLOCK;
+    }
+
+    console.log(`[Listener] 📜 Initiating scan from block ${fromBlock} (Chunks of ${BATCH_SIZE})...`);
+
     while (true) {
       const currentBlock = await provider.getBlockNumber().catch(() => fromBlock);
       
@@ -136,6 +144,10 @@ export async function startListener(): Promise<void> {
       if (fromBlock > currentBlock) {
         telemetry.lastScannedBlock = currentBlock;
         telemetry.scanProgressPct = 100;
+        
+        // Save current block height to database so we start here on reboot
+        await saveLastScannedBlock(currentBlock);
+
         // We caught up to the network head. Wait 15 seconds before polling again.
         await new Promise(r => setTimeout(r, 15000));
         continue;
@@ -181,6 +193,9 @@ export async function startListener(): Promise<void> {
         
         // Move to next batch only if successful
         fromBlock += BATCH_SIZE;
+
+        // Persist scanning progress in database
+        await saveLastScannedBlock(toBlock);
 
         // Small delay between successful chunks to be polite to the RPC
         await new Promise(r => setTimeout(r, 500));

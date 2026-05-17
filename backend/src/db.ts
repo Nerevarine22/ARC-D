@@ -95,6 +95,30 @@ export async function saveJob(job: FailedJob): Promise<void> {
     processedJobIds.delete(job.id);
   }
 }
+export async function getLastScannedBlock(defaultBlock: number): Promise<number> {
+  try {
+    const docRef = doc(db, 'analytics', 'scanner_state');
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      const data = docSnap.data();
+      if (typeof data.lastScannedBlock === 'number') {
+        return data.lastScannedBlock;
+      }
+    }
+  } catch (err) {
+    console.error('[DB] Error getting lastScannedBlock:', err);
+  }
+  return defaultBlock;
+}
+
+export async function saveLastScannedBlock(blockNumber: number): Promise<void> {
+  try {
+    const docRef = doc(db, 'analytics', 'scanner_state');
+    await setDoc(docRef, { lastScannedBlock: blockNumber }, { merge: true });
+  } catch (err) {
+    console.error('[DB] Error saving lastScannedBlock:', err);
+  }
+}
 
 // We still provide these for backward compatibility with the existing API
 // although the frontend will bypass this and read from Firestore directly.
