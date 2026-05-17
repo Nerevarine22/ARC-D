@@ -3,7 +3,7 @@ import cors from 'cors';
 import https from 'https';
 import http from 'http';
 import { config } from './config.js';
-import { getStats, getAllJobs } from './db.js';
+import { getStats, getAllJobs, FailedJob } from './db.js';
 
 const app = express();
 app.use(cors());
@@ -29,9 +29,9 @@ app.get('/api/health', (_req, res) => {
  * GET /api/stats
  * Returns aggregated analytics for the dashboard.
  */
-app.get('/api/stats', (_req, res) => {
+app.get('/api/stats', async (_req, res) => {
   try {
-    const stats = getStats();
+    const stats = await getStats();
     res.json(stats);
   } catch (err) {
     console.error('[API] /api/stats error:', err);
@@ -43,11 +43,11 @@ app.get('/api/stats', (_req, res) => {
  * GET /api/jobs?limit=50&offset=0
  * Returns paginated job list.
  */
-app.get('/api/jobs', (req, res) => {
+app.get('/api/jobs', async (req, res) => {
   try {
     const limit = Math.min(parseInt(String(req.query.limit ?? '50'), 10), 200);
     const offset = parseInt(String(req.query.offset ?? '0'), 10);
-    const all = getAllJobs();
+    const all = await getAllJobs();
     res.json({
       total: all.length,
       limit,
@@ -64,14 +64,19 @@ app.get('/api/jobs', (req, res) => {
  * GET /api/jobs/:id
  * Returns a single job by its internal UUID.
  */
-app.get('/api/jobs/:jobId', (req, res) => {
-  const all = getAllJobs();
-  const job = all.find(j => j.jobId === req.params.jobId || j.id === req.params.jobId);
-  if (!job) {
-    res.status(404).json({ error: 'Job not found' });
-    return;
+app.get('/api/jobs/:jobId', async (req, res) => {
+  try {
+    const all = await getAllJobs();
+    const job = all.find((j: FailedJob) => j.jobId === req.params.jobId || j.id === req.params.jobId);
+    if (!job) {
+      res.status(404).json({ error: 'Job not found' });
+      return;
+    }
+    res.json(job);
+  } catch (err) {
+    console.error('[API] /api/jobs/:jobId error:', err);
+    res.status(500).json({ error: 'Internal server error' });
   }
-  res.json(job);
 });
 
 // Self-pinging mechanism to keep Render free tier awake
