@@ -174,7 +174,7 @@ export async function startListener(): Promise<void> {
         // Process JobExpired
         if (expiredEvents.length > 0) {
           for (const event of expiredEvents) {
-            if (event instanceof ethers.EventLog) {
+            if ('args' in event && event.args) {
               const jobId = event.args[0] as bigint;
               await processFailedJob(contract, jobId, 'JobExpired', 2);
             }
@@ -184,7 +184,7 @@ export async function startListener(): Promise<void> {
         // Process Refunded
         if (refundedEvents.length > 0) {
           for (const event of refundedEvents) {
-            if (event instanceof ethers.EventLog) {
+            if ('args' in event && event.args) {
               const jobId = event.args[0] as bigint;
               await processFailedJob(contract, jobId, 'Refunded', 1);
             }
