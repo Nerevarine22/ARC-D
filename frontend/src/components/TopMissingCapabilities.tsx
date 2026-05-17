@@ -118,6 +118,7 @@ export default function TopMissingCapabilities({ skills, byCategory }: Props) {
                 type="category"
                 dataKey="skill"
                 width={210}
+                interval={0}
                 tickFormatter={formatSkillLabel}
                 tick={{
                   fill: '#8b9ab0',
