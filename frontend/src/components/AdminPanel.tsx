@@ -368,7 +368,7 @@ export default function AdminPanel({ stats, firestoreConnected }: Props) {
                 <div className="bg-bg-secondary/40 border border-border-subtle/50 p-3 rounded-sm">
                   <div className="text-[10px] text-text-muted uppercase">RPC CONNECTION</div>
                   <div className="text-sm font-bold mt-1">
-                    {telemetry ? (
+                    {telemetry?.listener ? (
                       telemetry.listener.rpcConnected ? (
                         <span className="text-status-green">CONNECTED</span>
                       ) : (
@@ -383,13 +383,13 @@ export default function AdminPanel({ stats, firestoreConnected }: Props) {
                 <div className="bg-bg-secondary/40 border border-border-subtle/50 p-3 rounded-sm">
                   <div className="text-[10px] text-text-muted uppercase">SCAN COMPLETION</div>
                   <div className="text-sm font-bold text-text-primary mt-1">
-                    {telemetry ? `${telemetry.listener.scanProgressPct}%` : '—'}
+                    {telemetry?.listener ? `${telemetry.listener.scanProgressPct}%` : '—'}
                   </div>
                 </div>
               </div>
 
               {/* Progress Bar */}
-              {telemetry && (
+              {telemetry?.listener && (
                 <div className="space-y-1.5">
                   <div className="flex justify-between text-[10px] text-text-muted">
                     <span>PROGRESS BAR</span>
@@ -408,13 +408,13 @@ export default function AdminPanel({ stats, firestoreConnected }: Props) {
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-text-muted">LAST SCANNED BLOCK</span>
                   <span className="text-text-accent font-semibold">
-                    {telemetry ? telemetry.listener.lastScannedBlock.toLocaleString() : '—'}
+                    {telemetry?.listener ? telemetry.listener.lastScannedBlock.toLocaleString() : '—'}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-xs">
                   <span className="text-text-muted">ARC TESTNET HEAD BLOCK</span>
                   <span className="text-text-primary font-semibold">
-                    {telemetry ? telemetry.listener.currentNetworkBlock.toLocaleString() : '—'}
+                    {telemetry?.listener ? telemetry.listener.currentNetworkBlock.toLocaleString() : '—'}
                   </span>
                 </div>
                 <div className="flex justify-between items-center text-xs">
@@ -441,14 +441,14 @@ export default function AdminPanel({ stats, firestoreConnected }: Props) {
                 <div className="bg-bg-secondary/40 border border-border-subtle/50 p-3 rounded-sm">
                   <div className="text-[10px] text-text-muted uppercase">TOTAL CALLS TRIGGERED</div>
                   <div className="text-stat-value text-xl mt-1 text-text-primary">
-                    {telemetry ? telemetry.gemini.totalCalls : 0}
+                    {telemetry?.gemini ? telemetry.gemini.totalCalls : 0}
                   </div>
                 </div>
 
                 <div className="bg-bg-secondary/40 border border-border-subtle/50 p-3 rounded-sm">
                   <div className="text-[10px] text-text-muted uppercase">TOTAL ERRORS RETRIED</div>
                   <div className="text-stat-value text-xl mt-1 text-status-red">
-                    {telemetry ? telemetry.gemini.totalErrors : 0}
+                    {telemetry?.gemini ? telemetry.gemini.totalErrors : 0}
                   </div>
                 </div>
               </div>
@@ -457,7 +457,7 @@ export default function AdminPanel({ stats, firestoreConnected }: Props) {
                 <div className="bg-bg-secondary/40 border border-border-subtle/50 p-3 rounded-sm">
                   <div className="text-[10px] text-text-muted uppercase">API ERROR RATE</div>
                   <div className="text-stat-value text-xl mt-1 text-text-secondary">
-                    {telemetry && telemetry.gemini.totalCalls > 0
+                    {telemetry?.gemini && telemetry.gemini.totalCalls > 0
                       ? `${((telemetry.gemini.totalErrors / telemetry.gemini.totalCalls) * 100).toFixed(1)}%`
                       : '0.0%'}
                   </div>
@@ -466,7 +466,7 @@ export default function AdminPanel({ stats, firestoreConnected }: Props) {
                 <div className="bg-bg-secondary/40 border border-border-subtle/50 p-3 rounded-sm">
                   <div className="text-[10px] text-text-muted uppercase">LAST CALL STATUS</div>
                   <div className="text-sm font-bold mt-1">
-                    {telemetry ? (
+                    {telemetry?.gemini ? (
                       telemetry.gemini.lastCallStatus === 'success' ? (
                         <span className="text-status-green">🟢 SUCCESS</span>
                       ) : telemetry.gemini.lastCallStatus === 'error' ? (
@@ -494,7 +494,7 @@ export default function AdminPanel({ stats, firestoreConnected }: Props) {
                 <div className="flex justify-between items-center">
                   <span className="text-text-muted">LAST CALL TIME</span>
                   <span className="text-text-primary truncate ml-2 max-w-[160px]">
-                    {telemetry && telemetry.gemini.lastCallTime
+                    {telemetry?.gemini?.lastCallTime
                       ? new Date(telemetry.gemini.lastCallTime).toLocaleTimeString()
                       : 'Never'}
                   </span>
