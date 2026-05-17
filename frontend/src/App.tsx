@@ -5,8 +5,7 @@ import TopMissingCapabilities from './components/TopMissingCapabilities';
 import LiveTerminalFeed from './components/LiveTerminalFeed';
 import AdminPanel from './components/AdminPanel';
 
-function StatusBar({ isConnected, lastUpdate, totalJobs, error }: {
-  isConnected: boolean;
+function StatusBar({ lastUpdate, totalJobs, error }: {
   lastUpdate: Date | null;
   totalJobs: number;
   error: string | null;
@@ -14,13 +13,6 @@ function StatusBar({ isConnected, lastUpdate, totalJobs, error }: {
   return (
     <div className="flex items-center justify-between px-4 py-2 border-b border-border-subtle bg-bg-secondary text-xs font-mono">
       <div className="flex items-center gap-4">
-        <div className="flex items-center gap-1.5">
-          <div className={`w-1.5 h-1.5 rounded-full ${isConnected ? 'bg-status-green' : 'bg-status-red'}`} />
-          <span className={isConnected ? 'text-status-green' : 'text-status-red'}>
-            {isConnected ? 'API CONNECTED' : 'API OFFLINE'}
-          </span>
-        </div>
-        <span className="text-border-strong">│</span>
         <span className="text-text-muted">ARC TESTNET</span>
         <span className="text-border-strong">│</span>
         <span className="text-text-muted">JOB_REGISTRY: 0x0747…4583</span>
@@ -98,17 +90,8 @@ export default function App() {
 
           {/* Right: badges */}
           <div className="flex items-center gap-2">
-            <a
-              href="#admin"
-              className="badge bg-status-red/10 hover:bg-status-red/20 border border-status-red/30 text-status-red text-xs transition-colors cursor-pointer"
-            >
-              [ Admin ]
-            </a>
-            <span className="badge bg-bg-tertiary border border-border-default text-text-secondary text-xs">
-              ERC-8183
-            </span>
-            <span className="badge bg-bg-tertiary border border-border-default text-text-secondary text-xs">
-              Gemini AI
+            <span className="badge bg-status-red/10 border border-status-red/30 text-status-red text-xs">
+              ARC Testnet
             </span>
           </div>
         </div>
@@ -116,7 +99,6 @@ export default function App() {
 
       {/* ── Status Bar ──────────────────────────────────────── */}
       <StatusBar
-        isConnected={isConnected}
         lastUpdate={lastUpdate}
         totalJobs={stats.totalJobs}
         error={error}
