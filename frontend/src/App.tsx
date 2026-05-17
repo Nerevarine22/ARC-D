@@ -132,7 +132,7 @@ export default function App() {
           Arc Market Watchdog v1.0 · ERC-8183 · Arc Testnet · <a href="#admin" className="hover:text-status-red text-text-muted transition-colors font-bold">[ ADMIN CONSOLE ]</a>
         </span>
         <span className="text-xs font-mono text-text-muted">
-          Powered by Google Gemini Flash · Unmet Demand Analytics
+          Powered by Nerevarin99 · Unmet Demand Analytics
         </span>
       </footer>
     </div>
