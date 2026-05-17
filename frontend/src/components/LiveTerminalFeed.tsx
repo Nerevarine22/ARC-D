@@ -78,7 +78,7 @@ export default function LiveTerminalFeed({ jobs }: Props) {
 
       {/* Terminal header bar */}
       <div className="grid grid-cols-[85px_75px_120px_90px_1fr] gap-4 px-4 py-1.5 border-b border-border-subtle bg-bg-secondary">
-        {['TIME', 'JOB ID', 'CATEGORY', 'PAIN', 'SUMMARY'].map((h) => (
+        {['CAUSE', 'JOB ID', 'CATEGORY', 'PAIN', 'SUMMARY'].map((h) => (
           <div key={h} className="text-xs font-mono font-medium text-text-muted uppercase tracking-wider truncate">
             {h}
           </div>
@@ -111,7 +111,7 @@ export default function LiveTerminalFeed({ jobs }: Props) {
                 key={job.id}
                 className={`terminal-row ${isNew ? 'bg-bg-hover/30' : ''}`}
               >
-                {/* Time */}
+                {/* Time / Cause */}
                 <div className="text-text-muted">
                   <div>{timeAgo(job.processedAt)}</div>
                   <div className={`text-xs ${reason.color}`}>{reason.label}</div>
@@ -137,7 +137,7 @@ export default function LiveTerminalFeed({ jobs }: Props) {
                 <div>
                   <PainBar score={job.analysis.pain_score} />
                   <div className="text-text-muted text-xs mt-1">
-                    {job.source === 'simulator' ? '⚡ sim' : '🔗 chain'}
+                    {job.source === 'simulator' ? '⚡ sim' : ''}
                   </div>
                 </div>
 
