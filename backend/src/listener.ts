@@ -123,7 +123,7 @@ export async function startListener(): Promise<void> {
 
   // Scan historical events in batches, and continue polling for live events
   try {
-    const BATCH_SIZE = 4000;
+    const BATCH_SIZE = 10000;
 
     // Load last scanned block from Firestore
     const dbLastScanned = await getLastScannedBlock(START_BLOCK);
@@ -142,11 +142,16 @@ export async function startListener(): Promise<void> {
       telemetry.currentNetworkBlock = currentBlock;
       
       if (fromBlock > currentBlock) {
+        const prevBlock = telemetry.lastScannedBlock;
         telemetry.lastScannedBlock = currentBlock;
         telemetry.scanProgressPct = 100;
         
         // Save current block height to database so we start here on reboot
         await saveLastScannedBlock(currentBlock);
+
+        if (currentBlock > prevBlock) {
+          console.log(`[Listener] 💓 Active & Monitoring. Block height increased to ${currentBlock}`);
+        }
 
         // We caught up to the network head. Wait 15 seconds before polling again.
         await new Promise(r => setTimeout(r, 15000));

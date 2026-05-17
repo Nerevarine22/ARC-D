@@ -12,7 +12,7 @@ function requireEnv(key: string, fallback?: string): string {
 }
 
 export const config = {
-  ARC_RPC_URL: requireEnv('ARC_TESTNET_RPC_URL', 'https://rpc.testnet.arc.io'),
+  ARC_RPC_URL: requireEnv('ARC_TESTNET_RPC_URL', 'https://rpc.testnet.arc.network'),
   JOB_REGISTRY_ADDRESS: requireEnv(
     'JOB_REGISTRY_ADDRESS',
     '0x0747EEf0706327138c69792bF28Cd525089e4583'
