@@ -1,6 +1,7 @@
 import { startApi } from './api.js';
 import { startListener } from './listener.js';
 import { startSimulator } from './simulator.js';
+import { initDb } from './db.js';
 
 async function main(): Promise<void> {
   console.log('');
@@ -10,11 +11,16 @@ async function main(): Promise<void> {
   console.log('╚══════════════════════════════════════════════════════╝');
   console.log('');
 
+  // Initialize DB Cache from Firestore
+  await initDb();
+
   // Start REST API first (always)
   startApi();
 
-  // Start blockchain listener (may fail gracefully if testnet is offline)
-  await startListener();
+  // Start blockchain listener in the background (runs forever and may fail gracefully)
+  startListener().catch(err => {
+    console.error('[Main] Blockchain listener failed:', err);
+  });
 
   // Start demo simulator (always runs for dashboard demo)
   // startSimulator();

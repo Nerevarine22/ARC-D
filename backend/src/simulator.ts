@@ -57,7 +57,7 @@ async function simulateTick(): Promise<void> {
   const analysis = await analyzeSpec(rawSpec, bountyAmount);
   console.log(`[Simulator] ✅ ${analysis.category} | pain=${analysis.pain_score} | ${analysis.summary_en.slice(0, 80)}...`);
 
-  saveJob({
+  await saveJob({
     id: uuidv4(),
     jobId,
     owner,

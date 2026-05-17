@@ -58,7 +58,7 @@ async function processFailedJob(
     console.log(`[Listener] ✅ Analysis: category=${analysis.category} | pain=${analysis.pain_score} | skills=${analysis.missing_skills.join(', ')}`);
 
     // Save to DB
-    saveJob({
+    await saveJob({
       id: uuidv4(),
       jobId: jId,
       owner,

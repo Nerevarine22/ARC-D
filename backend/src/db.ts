@@ -1,5 +1,5 @@
-import fs from 'fs';
-import path from 'path';
+import { initializeApp } from 'firebase/app';
+import { getFirestore, doc, setDoc, collection, increment, writeBatch, getDocs, getDoc, query, orderBy, limit } from 'firebase/firestore';
 import { config } from './config.js';
 
 export interface GeminiAnalysis {
@@ -23,91 +23,129 @@ export interface FailedJob {
   source: 'onchain' | 'simulator';
 }
 
-// ─── In-Memory Store ──────────────────────────────────────────────────────────
+// ─── Initialize Firebase ──────────────────────────────────────────────────────
 
-const jobs: Map<string, FailedJob> = new Map();
-let totalUsdcLost = 0;
+const app = initializeApp(config.FIREBASE);
+const db = getFirestore(app);
 
-// ─── Persistence ─────────────────────────────────────────────────────────────
+// Keep a small cache of processed job IDs to prevent duplicate processing
+const processedJobIds = new Set<string>();
 
-function loadFromDisk(): void {
+export async function initDb(): Promise<void> {
   try {
-    if (fs.existsSync(config.DB_PATH)) {
-      const raw = fs.readFileSync(config.DB_PATH, 'utf-8');
-      const parsed: FailedJob[] = JSON.parse(raw);
-      for (const job of parsed) {
-        jobs.set(job.id, job);
-        totalUsdcLost += job.bountyAmount;
-      }
-      console.log(`[DB] Loaded ${parsed.length} jobs from disk. Total USDC: ${totalUsdcLost.toFixed(2)}`);
+    const q = query(collection(db, 'jobs'));
+    const snap = await getDocs(q);
+    for (const d of snap.docs) {
+      const job = d.data() as FailedJob;
+      if (job.jobId) processedJobIds.add(job.jobId);
+      if (job.id) processedJobIds.add(job.id);
     }
+    console.log(`[DB] 🗄️ Cache loaded: ${processedJobIds.size} entries (jobs: ${snap.size})`);
   } catch (err) {
-    console.warn('[DB] Could not load from disk:', err);
-  }
-}
-
-function saveToDisk(): void {
-  try {
-    const arr = Array.from(jobs.values());
-    fs.writeFileSync(config.DB_PATH, JSON.stringify(arr, null, 2), 'utf-8');
-  } catch (err) {
-    console.error('[DB] Save error:', err);
+    console.error('[DB] Error loading cache from Firestore:', err);
   }
 }
 
 // ─── Public API ───────────────────────────────────────────────────────────────
 
 export function hasJobId(jobId: string): boolean {
-  for (const job of jobs.values()) {
-    if (job.jobId === jobId) return true;
-  }
-  return false;
+  return processedJobIds.has(jobId);
 }
 
-export function saveJob(job: FailedJob): void {
-  jobs.set(job.id, job);
-  totalUsdcLost += job.bountyAmount;
-  saveToDisk();
-  console.log(`[DB] Saved job ${job.jobId} | $${job.bountyAmount} USDC | pain=${job.analysis.pain_score} | ${job.analysis.category}`);
-}
+export async function saveJob(job: FailedJob): Promise<void> {
+  if (processedJobIds.has(job.jobId)) return;
+  
+  processedJobIds.add(job.jobId);
+  processedJobIds.add(job.id);
 
-export function getAllJobs(): FailedJob[] {
-  return Array.from(jobs.values()).sort(
-    (a, b) => new Date(b.processedAt).getTime() - new Date(a.processedAt).getTime()
-  );
-}
+  try {
+    const batch = writeBatch(db);
 
-export function getTotalUsdcLost(): number {
-  return totalUsdcLost;
-}
+    // 1. Save the job to the jobs collection
+    const jobRef = doc(collection(db, 'jobs'), job.id);
+    batch.set(jobRef, job);
 
-export function getTopSkills(limit = 15): Array<{ skill: string; count: number }> {
-  const freq: Record<string, number> = {};
-  for (const job of jobs.values()) {
+    // 2. Update the global_stats document in the analytics collection
+    const statsRef = doc(db, 'analytics', 'global_stats');
+    
+    // We update totalLeftOnTable and increment each skill mention
+    const statsUpdate: Record<string, any> = {
+      totalLeftOnTable: increment(job.bountyAmount),
+      totalJobs: increment(1),
+      categories: {
+        [job.analysis.category]: increment(1)
+      },
+      skills: {}
+    };
+    
     for (const skill of job.analysis.missing_skills) {
-      freq[skill] = (freq[skill] ?? 0) + 1;
+      statsUpdate.skills[skill] = increment(1);
     }
+    
+    // Use merge: true so we don't overwrite existing stats
+    batch.set(statsRef, statsUpdate, { merge: true });
+
+    await batch.commit();
+
+    console.log(`[DB] Saved job ${job.jobId} to Firestore | $${job.bountyAmount} USDC | pain=${job.analysis.pain_score} | ${job.analysis.category}`);
+  } catch (err) {
+    console.error('[DB] Save error (Firestore):', err);
+    // Remove from cache if save failed so we can retry
+    processedJobIds.delete(job.jobId);
+    processedJobIds.delete(job.id);
   }
-  return Object.entries(freq)
-    .map(([skill, count]) => ({ skill, count }))
-    .sort((a, b) => b.count - a.count)
-    .slice(0, limit);
 }
 
-export function getStats() {
-  const allJobs = getAllJobs();
-  const byCategory: Record<string, number> = {};
-  for (const job of allJobs) {
-    byCategory[job.analysis.category] = (byCategory[job.analysis.category] ?? 0) + 1;
+// We still provide these for backward compatibility with the existing API
+// although the frontend will bypass this and read from Firestore directly.
+
+export async function getAllJobs(): Promise<FailedJob[]> {
+  try {
+    const q = query(collection(db, 'jobs'), orderBy('processedAt', 'desc'), limit(50));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => d.data() as FailedJob);
+  } catch (err) {
+    console.error('[DB] getAllJobs error:', err);
+    return [];
   }
-  return {
-    totalJobs: jobs.size,
-    totalUsdcLost: parseFloat(totalUsdcLost.toFixed(2)),
-    topSkills: getTopSkills(),
-    byCategory,
-    recentJobs: allJobs.slice(0, 50),
-  };
 }
 
-// Load persisted data on module init
-loadFromDisk();
+export async function getStats() {
+  try {
+    // 1. Get global stats
+    const statsSnap = await getDoc(doc(db, 'analytics', 'global_stats'));
+    const statsData = statsSnap.data() || { totalLeftOnTable: 0, skills: {} };
+    
+    // 2. Transform skills map to sorted array
+    const skillsMap: Record<string, number> = statsData.skills || {};
+    const topSkills = Object.entries(skillsMap)
+      .map(([skill, count]) => ({ skill, count }))
+      .sort((a, b) => b.count - a.count)
+      .slice(0, 15);
+
+    // 3. Get recent jobs to calculate categories roughly, or just return an empty/approximate category map
+    // (since we aren't maintaining category stats in the batch update above to keep it simple, but we could).
+    const recentJobs = await getAllJobs();
+    const byCategory: Record<string, number> = {};
+    for (const job of recentJobs) {
+      byCategory[job.analysis.category] = (byCategory[job.analysis.category] ?? 0) + 1;
+    }
+
+    return {
+      totalJobs: statsData.totalJobs || recentJobs.length, // totalJobs is optional, or we can add it to statsUpdate
+      totalUsdcLost: parseFloat((statsData.totalLeftOnTable || 0).toFixed(2)),
+      topSkills,
+      byCategory,
+      recentJobs,
+    };
+  } catch (err) {
+    console.error('[DB] getStats error:', err);
+    return {
+      totalJobs: 0,
+      totalUsdcLost: 0,
+      topSkills: [],
+      byCategory: {},
+      recentJobs: [],
+    };
+  }
+}

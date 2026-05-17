@@ -1,7 +1,6 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
-import axios from 'axios';
-
-const API_BASE = import.meta.env.VITE_API_URL ?? 'http://localhost:3001';
+import { useState, useEffect, useRef } from 'react';
+import { collection, doc, query, orderBy, limit, onSnapshot } from 'firebase/firestore';
+import { db } from '../firebase';
 
 export interface GeminiAnalysis {
   category: 'DeFi' | 'Security' | 'Data-Parsing' | 'Infrastructure';
@@ -44,7 +43,7 @@ const EMPTY_STATS: Stats = {
   recentJobs: [],
 };
 
-export function useStats(pollIntervalMs = 3000) {
+export function useStats(_pollIntervalMs = 3000) { // Keep arg for compat, though unused
   const [stats, setStats] = useState<Stats>(EMPTY_STATS);
   const [isConnected, setIsConnected] = useState(false);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
@@ -52,31 +51,60 @@ export function useStats(pollIntervalMs = 3000) {
   const prevTotalRef = useRef<number>(0);
   const [isFlashing, setIsFlashing] = useState(false);
 
-  const fetchStats = useCallback(async () => {
-    try {
-      const res = await axios.get<Stats>(`${API_BASE}/api/stats`, { timeout: 5000 });
-      setStats(res.data);
+  useEffect(() => {
+    // We will merge data from two listeners
+    let currentStats = { ...EMPTY_STATS };
+
+    const updateState = () => {
+      setStats({ ...currentStats });
       setIsConnected(true);
       setLastUpdate(new Date());
       setError(null);
 
-      // Flash animation when total changes
-      if (res.data.totalUsdcLost !== prevTotalRef.current) {
-        prevTotalRef.current = res.data.totalUsdcLost;
+      if (currentStats.totalUsdcLost !== prevTotalRef.current) {
+        prevTotalRef.current = currentStats.totalUsdcLost;
         setIsFlashing(true);
         setTimeout(() => setIsFlashing(false), 600);
       }
-    } catch (err) {
-      setIsConnected(false);
-      setError('Cannot reach API. Start the backend server.');
-    }
-  }, []);
+    };
 
-  useEffect(() => {
-    fetchStats();
-    const interval = setInterval(fetchStats, pollIntervalMs);
-    return () => clearInterval(interval);
-  }, [fetchStats, pollIntervalMs]);
+    const unsubscribeStats = onSnapshot(doc(db, 'analytics', 'global_stats'), (docSnap) => {
+      if (docSnap.exists()) {
+        const data = docSnap.data();
+        currentStats.totalUsdcLost = parseFloat((data.totalLeftOnTable || 0).toFixed(2));
+        currentStats.totalJobs = data.totalJobs || 0;
+        currentStats.byCategory = data.categories || {};
+        
+        const skillsMap: Record<string, number> = data.skills || {};
+        currentStats.topSkills = Object.entries(skillsMap)
+          .map(([skill, count]) => ({ skill, count }))
+          .sort((a, b) => b.count - a.count)
+          .slice(0, 15);
+          
+        updateState();
+      }
+    }, (err) => {
+      console.error("Firestore global_stats error:", err);
+      setError('Cannot connect to Firebase.');
+      setIsConnected(false);
+    });
+
+    const q = query(collection(db, 'jobs'), orderBy('processedAt', 'desc'), limit(50));
+    const unsubscribeJobs = onSnapshot(q, (querySnap) => {
+      const jobs = querySnap.docs.map(d => d.data() as FailedJob);
+      currentStats.recentJobs = jobs;
+      updateState();
+    }, (err) => {
+      console.error("Firestore jobs error:", err);
+      setError('Cannot connect to Firebase.');
+      setIsConnected(false);
+    });
+
+    return () => {
+      unsubscribeStats();
+      unsubscribeJobs();
+    };
+  }, []);
 
   return { stats, isConnected, lastUpdate, error, isFlashing };
 }
