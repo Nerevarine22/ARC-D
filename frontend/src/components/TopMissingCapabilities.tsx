@@ -32,6 +32,14 @@ function getSkillColor(skill: string): string {
   return SKILL_COLOR_MAP[skill];
 }
 
+// Truncate excessively long skill names for the axis labels
+function formatSkillLabel(skill: string): string {
+  if (skill.length > 28) {
+    return skill.slice(0, 25) + '...';
+  }
+  return skill;
+}
+
 // Custom tooltip
 function CustomTooltip({ active, payload }: any) {
   if (!active || !payload?.length) return null;
@@ -109,7 +117,8 @@ export default function TopMissingCapabilities({ skills, byCategory }: Props) {
               <YAxis
                 type="category"
                 dataKey="skill"
-                width={140}
+                width={210}
+                tickFormatter={formatSkillLabel}
                 tick={{
                   fill: '#8b9ab0',
                   fontSize: 11,
