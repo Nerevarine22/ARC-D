@@ -25,7 +25,8 @@ export default function Web3ReportButton({ stats }: Props) {
   useEffect(() => {
     if (typeof window !== 'undefined' && (window as any).ethereum) {
       const handleAccounts = (accounts: string[]) => {
-        if (accounts.length > 0) {
+        const isDisconnected = localStorage.getItem('wallet_disconnected') === 'true';
+        if (accounts.length > 0 && !isDisconnected) {
           setAccount(accounts[0]);
           setStatus('connected');
           setErrorMsg(null);
@@ -62,6 +63,7 @@ export default function Web3ReportButton({ stats }: Props) {
       setErrorMsg(null);
       const accounts = await (window as any).ethereum.request({ method: 'eth_requestAccounts' });
       if (accounts.length > 0) {
+        localStorage.removeItem('wallet_disconnected'); // Clear disconnection flag on manual connect
         setAccount(accounts[0]);
         setStatus('connected');
       } else {
@@ -72,6 +74,14 @@ export default function Web3ReportButton({ stats }: Props) {
       setErrorMsg(err.message || 'Connection rejected.');
       setStatus('error');
     }
+  };
+
+  // 2.5. Disconnect Wallet (Emulated UI Disconnect)
+  const disconnectWallet = () => {
+    localStorage.setItem('wallet_disconnected', 'true');
+    setAccount(null);
+    setStatus('disconnected');
+    setErrorMsg(null);
   };
 
   // 3. Helper to generate Premium PDF Intelligence Report
@@ -386,9 +396,18 @@ export default function Web3ReportButton({ stats }: Props) {
     <div className="relative flex items-center gap-2 font-mono">
       {/* Account Info Badge */}
       {account && status !== 'disconnected' && (
-        <span className="text-[10px] text-text-muted bg-bg-primary border border-border-subtle px-2 py-1 rounded-sm tracking-tight hidden sm:inline-block">
-          🟢 {shortAddress}
-        </span>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-text-muted bg-bg-primary border border-border-subtle px-2 py-1 rounded-sm tracking-tight hidden sm:inline-block">
+            🟢 {shortAddress}
+          </span>
+          <button
+            onClick={disconnectWallet}
+            className="text-[9px] text-status-red/70 bg-status-red/10 border border-status-red/30 px-2 py-1 rounded-sm hover:bg-status-red hover:text-white transition-all cursor-pointer font-bold uppercase select-none active:scale-[0.97]"
+            title="Disconnect Wallet"
+          >
+            🔌 Disconnect
+          </button>
+        </div>
       )}
 
       {/* Primary Action Button */}
