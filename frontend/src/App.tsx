@@ -4,6 +4,7 @@ import LeftOnTableCounter from './components/LeftOnTableCounter';
 import TopMissingCapabilities from './components/TopMissingCapabilities';
 import LiveTerminalFeed from './components/LiveTerminalFeed';
 import AdminPanel from './components/AdminPanel';
+import Web3ReportButton from './components/Web3ReportButton';
 
 function StatusBar({ lastUpdate, totalJobs, error }: {
   lastUpdate: Date | null;
@@ -88,8 +89,9 @@ export default function App() {
             ))}
           </div>
 
-          {/* Right: badges */}
-          <div className="flex items-center gap-2">
+          {/* Right: badges & payment */}
+          <div className="flex items-center gap-4">
+            <Web3ReportButton stats={stats} />
             <span className="badge bg-status-red/10 border border-status-red/30 text-status-red text-xs">
               ARC Testnet
             </span>
