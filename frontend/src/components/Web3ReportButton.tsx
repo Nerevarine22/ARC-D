@@ -333,7 +333,7 @@ export default function Web3ReportButton({ stats }: Props) {
       job.jobId || '',
       job.analysis?.category || 'Unknown',
       `$${(job.bountyAmount || 0).toFixed(2)} USDC`,
-      job.reasonCode === 1 ? 'Cancelled' : job.reasonCode === 2 ? 'Expired' : 'Unknown',
+      job.reasonCode === 1 ? 'Cancelled' : job.reasonCode === 2 ? 'Expired' : job.reasonCode === 3 ? 'Rejected' : 'Unknown',
       new Date(job.processedAt).toISOString().replace('T', ' ').slice(0, 19)
     ]);
 

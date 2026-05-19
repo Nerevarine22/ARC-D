@@ -30,6 +30,7 @@ export const config = {
     COMPLETED: 0,
     CANCELLED: 1,
     EXPIRED: 2,
+    REJECTED: 3,
   } as const,
   FIREBASE: {
     apiKey: requireEnv('FIREBASE_API_KEY'),

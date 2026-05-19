@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, doc, setDoc, collection, increment, writeBatch, getDocs, getDoc, query, orderBy, limit } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, collection, increment, writeBatch, getDocs, getDoc, query, orderBy, limit, deleteDoc } from 'firebase/firestore';
 import { config } from './config.js';
 
 export interface GeminiAnalysis {
@@ -119,6 +119,38 @@ export async function saveLastScannedBlock(blockNumber: number): Promise<void> {
     console.error('[DB] Error saving lastScannedBlock:', err);
   }
 }
+
+export async function saveFailedAnalysis(jobId: string, metadata: any): Promise<void> {
+  try {
+    const docRef = doc(db, 'failed_analyses', jobId);
+    await setDoc(docRef, metadata, { merge: true });
+    console.log(`[DB] 📥 Saved failed analysis metadata for jobId: ${jobId} in Firestore queue.`);
+  } catch (err) {
+    console.error(`[DB] Error saving failed analysis for jobId ${jobId}:`, err);
+  }
+}
+
+export async function getFailedAnalyses(): Promise<any[]> {
+  try {
+    const q = query(collection(db, 'failed_analyses'));
+    const snap = await getDocs(q);
+    return snap.docs.map(d => d.data());
+  } catch (err) {
+    console.error('[DB] Error getting failed analyses queue:', err);
+    return [];
+  }
+}
+
+export async function deleteFailedAnalysis(jobId: string): Promise<void> {
+  try {
+    const docRef = doc(db, 'failed_analyses', jobId);
+    await deleteDoc(docRef);
+    console.log(`[DB] 🗑️ Deleted processed jobId ${jobId} from failed analyses queue.`);
+  } catch (err) {
+    console.error(`[DB] Error deleting failed analysis for jobId ${jobId}:`, err);
+  }
+}
+
 
 // We still provide these for backward compatibility with the existing API
 // although the frontend will bypass this and read from Firestore directly.

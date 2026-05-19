@@ -15,6 +15,7 @@ const CATEGORY_BADGE: Record<string, string> = {
 const REASON_LABEL: Record<number, { label: string; color: string }> = {
   1: { label: 'CANCELLED', color: 'text-status-amber' },
   2: { label: 'EXPIRED', color: 'text-status-red' },
+  3: { label: 'REJECTED', color: 'text-status-red' },
 };
 
 function PainBar({ score }: { score: number }) {

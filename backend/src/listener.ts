@@ -5,7 +5,8 @@ import { ethers } from 'ethers';
 import { v4 as uuidv4 } from 'uuid';
 import { config } from './config.js';
 import { analyzeSpec } from './analyzer.js';
-import { saveJob, hasJobId, getLastScannedBlock, saveLastScannedBlock } from './db.js';
+import { fetchSpec } from './ipfs.js';
+import { saveJob, hasJobId, getLastScannedBlock, saveLastScannedBlock, saveFailedAnalysis, getFailedAnalyses, deleteFailedAnalysis } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -15,6 +16,29 @@ const ABI_PATH = path.resolve(__dirname, '../../AgenticCommerceABI.json');
 const AGENTIC_COMMERCE_ABI = JSON.parse(fs.readFileSync(ABI_PATH, 'utf-8'));
 
 // ─── Pipeline: Process a single job ──────────────────────────────────────────
+
+function isIpfsHash(text: string): boolean {
+  if (!text) return false;
+  const trimmed = text.trim();
+  if (trimmed.toLowerCase().startsWith('ipfs://')) return true;
+  if (trimmed.startsWith('Qm') && trimmed.length === 46) return true;
+  if (trimmed.startsWith('bafy') && trimmed.length === 59) return true;
+  if (trimmed.includes('/ipfs/')) return true;
+  return false;
+}
+
+function extractIpfsCid(text: string): string {
+  let cleaned = text.trim();
+  if (cleaned.toLowerCase().startsWith('ipfs://')) {
+    cleaned = cleaned.substring(7);
+  }
+  if (cleaned.includes('/ipfs/')) {
+    const idx = cleaned.indexOf('/ipfs/');
+    cleaned = cleaned.substring(idx + 6);
+  }
+  cleaned = cleaned.split('?')[0].split('/')[0];
+  return cleaned;
+}
 
 async function processFailedJob(
   contract: ethers.Contract,
@@ -29,50 +53,110 @@ async function processFailedJob(
   
   console.log(`\n[Listener] 🔴 ${reasonLabel} | ID: ${jId}`);
 
+  // Fetch real job details from contract
+  const jobData = await contract.getJob(jobId);
+  
+  // Extract budget and format it (assuming 6 decimals USDC)
+  const budgetRaw = jobData.budget;
+  const bountyAmount = Number(ethers.formatUnits(budgetRaw, 6));
+  
+  const owner = jobData.client;
+  const deadline = Number(jobData.expiredAt);
+  const descriptionRaw = jobData.description;
+
+  console.log(`[Listener] 📋 Owner: ${owner} | Budget: $${bountyAmount.toFixed(2)} USDC`);
+  console.log(`[Listener] 📄 On-chain Description length: ${descriptionRaw?.length || 0} chars`);
+
+  if (!descriptionRaw || descriptionRaw.trim() === '') {
+     console.log(`[Listener] ⚠️  Skipping job ${jId} because description is empty.`);
+     return;
+  }
+
+  // IPFS Resolving
+  let description = descriptionRaw;
+  let ipfsHashVal = 'onchain-description';
+
+  if (isIpfsHash(descriptionRaw)) {
+    const cid = extractIpfsCid(descriptionRaw);
+    console.log(`[Listener] 🌐 Detected IPFS hash/link. Fetching from IPFS: ${cid}...`);
+    try {
+      const resolvedSpec = await fetchSpec(cid);
+      if (resolvedSpec && resolvedSpec.trim() !== '') {
+        description = resolvedSpec;
+        ipfsHashVal = cid;
+        console.log(`[Listener] 📥 Successfully resolved description from IPFS (${description.length} chars).`);
+      } else {
+        console.warn(`[Listener] ⚠️ IPFS resolution empty for ${cid}. Using raw description.`);
+      }
+    } catch (ipfsErr) {
+      console.warn(`[Listener] ⚠️ IPFS resolution failed for ${cid}. Using raw description. Error:`, ipfsErr);
+    }
+  }
+
+  // Analyze with Gemini AI
+  console.log(`[Listener] ⏳ Waiting 4.5s to respect Gemini API limits...`);
+  await new Promise(resolve => setTimeout(resolve, 4500));
+  
+  console.log(`[Listener] 🤖 Sending to Gemini for analysis...`);
+  const analysis = await analyzeSpec(description, bountyAmount);
+  console.log(`[Listener] ✅ Analysis: category=${analysis.category} | pain=${analysis.pain_score} | skills=${analysis.missing_skills.join(', ')}`);
+
+  // Save to DB
+  await saveJob({
+    id: uuidv4(),
+    jobId: jId,
+    owner,
+    bountyAmount,
+    deadline,
+    rawSpec: description.slice(0, 2000), // store truncated
+    ipfsHash: ipfsHashVal,
+    reasonCode,
+    analysis,
+    processedAt: new Date().toISOString(),
+    source: 'onchain',
+  });
+
+  // Success! Delete from failed_analyses collection if it was there
+  await deleteFailedAnalysis(jId);
+}
+
+async function retryFailedAnalyses(contract: ethers.Contract): Promise<void> {
+  let failedList: any[] = [];
   try {
-    // Fetch real job details from contract
-    const jobData = await contract.getJob(jobId);
-    
-    // Extract budget and format it (assuming 6 decimals USDC)
-    const budgetRaw = jobData.budget;
-    const bountyAmount = Number(ethers.formatUnits(budgetRaw, 6));
-    
-    const owner = jobData.client;
-    const deadline = Number(jobData.expiredAt);
-    const description = jobData.description;
+    failedList = await getFailedAnalyses();
+  } catch (err) {
+    console.error('[Listener] Error reading failed analyses queue:', err);
+    return;
+  }
 
-    console.log(`[Listener] 📋 Owner: ${owner} | Budget: $${bountyAmount.toFixed(2)} USDC`);
-    console.log(`[Listener] 📄 Description length: ${description.length} chars`);
+  if (failedList.length === 0) {
+    return;
+  }
 
-    if (!description || description.trim() === '') {
-       console.log(`[Listener] ⚠️  Skipping job ${jId} because description is empty.`);
-       return;
+  console.log(`\n[Listener] 🔄 Retrying ${failedList.length} failed jobs in Firestore queue...`);
+
+  for (const failed of failedList) {
+    const jId = failed.jobId;
+    const retries = failed.retryCount ?? 0;
+    
+    if (retries >= 5) {
+      console.warn(`[Listener] ⚠️ Job ${jId} exceeded max retries (5). Removing from queue.`);
+      await deleteFailedAnalysis(jId);
+      continue;
     }
 
-    // Analyze with Gemini AI
-    console.log(`[Listener] ⏳ Waiting 4.5s to respect Gemini API limits...`);
-    await new Promise(resolve => setTimeout(resolve, 4500));
-    
-    console.log(`[Listener] 🤖 Sending to Gemini for analysis...`);
-    const analysis = await analyzeSpec(description, bountyAmount);
-    console.log(`[Listener] ✅ Analysis: category=${analysis.category} | pain=${analysis.pain_score} | skills=${analysis.missing_skills.join(', ')}`);
-
-    // Save to DB
-    await saveJob({
-      id: uuidv4(),
-      jobId: jId,
-      owner,
-      bountyAmount,
-      deadline,
-      rawSpec: description.slice(0, 2000), // store truncated
-      ipfsHash: 'onchain-description', // no IPFS anymore, data is in string
-      reasonCode,
-      analysis,
-      processedAt: new Date().toISOString(),
-      source: 'onchain',
-    });
-  } catch (err) {
-    console.error(`[Listener] ❌ Error processing job ${jId}:`, err);
+    try {
+      console.log(`[Listener] 🔄 [Retry ${retries + 1}/5] Processing job ${jId}...`);
+      await processFailedJob(contract, BigInt(jId), failed.reasonLabel, failed.reasonCode);
+      // Success will automatically delete it from failed_analyses in processFailedJob
+    } catch (err: any) {
+      console.error(`[Listener] ❌ [Retry ${retries + 1}/5] Job ${jId} failed again:`, err.message || err);
+      // Increment retry count and update Firestore
+      failed.retryCount = retries + 1;
+      failed.failedAt = new Date().toISOString();
+      failed.error = err.message || String(err);
+      await saveFailedAnalysis(jId, failed);
+    }
   }
 }
 
@@ -176,6 +260,11 @@ export async function startListener(): Promise<void> {
           console.log(`[Listener] 💓 Active & Monitoring. Block height increased to ${currentBlock}`);
         }
 
+        // We caught up to the network head. Retry failed analyses in queue.
+        await retryFailedAnalyses(contract).catch(retryErr => {
+          console.error('[Listener] ❌ Error in retryFailedAnalyses:', retryErr);
+        });
+
         // We caught up to the network head. Wait 15 seconds before polling again.
         await new Promise(r => setTimeout(r, 15000));
         continue;
@@ -191,20 +280,34 @@ export async function startListener(): Promise<void> {
       try {
         const expiredFilter = contract.filters.JobExpired();
         const refundedFilter = contract.filters.Refunded();
+        const rejectedFilter = contract.filters.JobRejected();
         
-        const [expiredEvents, refundedEvents] = await Promise.all([
+        const [expiredEvents, refundedEvents, rejectedEvents] = await Promise.all([
           contract.queryFilter(expiredFilter, fromBlock, toBlock),
-          contract.queryFilter(refundedFilter, fromBlock, toBlock)
+          contract.queryFilter(refundedFilter, fromBlock, toBlock),
+          contract.queryFilter(rejectedFilter, fromBlock, toBlock)
         ]);
         
-        console.log(`[Listener] 🔍 Scanning blocks from ${fromBlock} to ${toBlock}... Found: JobExpired=${expiredEvents.length}, Refunded=${refundedEvents.length}`);
+        console.log(`[Listener] 🔍 Scanning blocks from ${fromBlock} to ${toBlock}... Found: JobExpired=${expiredEvents.length}, Refunded=${refundedEvents.length}, JobRejected=${rejectedEvents.length}`);
 
         // Process JobExpired
         if (expiredEvents.length > 0) {
           for (const event of expiredEvents) {
             if ('args' in event && event.args) {
               const jobId = event.args[0] as bigint;
-              await processFailedJob(contract, jobId, 'JobExpired', 2);
+              try {
+                await processFailedJob(contract, jobId, 'JobExpired', 2);
+              } catch (err: any) {
+                console.error(`[Listener] ❌ Error processing job ${jobId.toString()}:`, err);
+                await saveFailedAnalysis(jobId.toString(), {
+                  jobId: jobId.toString(),
+                  reasonLabel: 'JobExpired',
+                  reasonCode: 2,
+                  failedAt: new Date().toISOString(),
+                  error: err.message || String(err),
+                  retryCount: 0
+                });
+              }
             }
           }
         }
@@ -214,7 +317,41 @@ export async function startListener(): Promise<void> {
           for (const event of refundedEvents) {
             if ('args' in event && event.args) {
               const jobId = event.args[0] as bigint;
-              await processFailedJob(contract, jobId, 'Refunded', 1);
+              try {
+                await processFailedJob(contract, jobId, 'Refunded', 1);
+              } catch (err: any) {
+                console.error(`[Listener] ❌ Error processing job ${jobId.toString()}:`, err);
+                await saveFailedAnalysis(jobId.toString(), {
+                  jobId: jobId.toString(),
+                  reasonLabel: 'Refunded',
+                  reasonCode: 1,
+                  failedAt: new Date().toISOString(),
+                  error: err.message || String(err),
+                  retryCount: 0
+                });
+              }
+            }
+          }
+        }
+
+        // Process JobRejected
+        if (rejectedEvents.length > 0) {
+          for (const event of rejectedEvents) {
+            if ('args' in event && event.args) {
+              const jobId = event.args[0] as bigint;
+              try {
+                await processFailedJob(contract, jobId, 'JobRejected', 3);
+              } catch (err: any) {
+                console.error(`[Listener] ❌ Error processing job ${jobId.toString()}:`, err);
+                await saveFailedAnalysis(jobId.toString(), {
+                  jobId: jobId.toString(),
+                  reasonLabel: 'JobRejected',
+                  reasonCode: 3,
+                  failedAt: new Date().toISOString(),
+                  error: err.message || String(err),
+                  retryCount: 0
+                });
+              }
             }
           }
         }
