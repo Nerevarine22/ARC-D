@@ -21,53 +21,119 @@ export default function Web3ReportButton({ stats }: Props) {
   const [account, setAccount] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
+  // Helper to safely discover and get the injected ethereum provider (handling timing + conflicts)
+  const getEthereumProvider = () => {
+    if (typeof window === 'undefined') return null;
+    const anyWindow = window as any;
+
+    // If multiple providers are injected (e.g. MetaMask + Rabby), some wallets populate window.ethereum.providers
+    if (anyWindow.ethereum?.providers?.length) {
+      // Prefer MetaMask or Rabby if present, otherwise fallback to the first active provider
+      const preferred = anyWindow.ethereum.providers.find((p: any) => p.isMetaMask || p.isRabby);
+      if (preferred) return preferred;
+      return anyWindow.ethereum.providers[0];
+    }
+
+    return anyWindow.ethereum || null;
+  };
+
   // 1. Listen for wallet events and check connection on mount
   useEffect(() => {
-    if (typeof window !== 'undefined' && (window as any).ethereum) {
-      const handleAccounts = (accounts: string[]) => {
-        const isDisconnected = localStorage.getItem('wallet_disconnected') === 'true';
-        if (accounts.length > 0 && !isDisconnected) {
-          setAccount(accounts[0]);
-          setStatus('connected');
-          setErrorMsg(null);
-        } else {
-          setAccount(null);
-          setStatus('disconnected');
-        }
-      };
+    let checkInterval: any = null;
+    let isCleanedUp = false;
+    let activeProvider: any = null;
 
-      (window as any).ethereum.on('accountsChanged', handleAccounts);
+    const handleAccounts = (accounts: string[]) => {
+      const isDisconnected = localStorage.getItem('wallet_disconnected') === 'true';
+      if (accounts.length > 0 && !isDisconnected) {
+        setAccount(accounts[0]);
+        setStatus('connected');
+        setErrorMsg(null);
+      } else {
+        setAccount(null);
+        setStatus('disconnected');
+      }
+    };
+
+    const initWalletListener = (provider: any) => {
+      if (isCleanedUp || !provider) return;
+      activeProvider = provider;
+
+      // Subscribe to changes safely
+      if (provider.on) {
+        provider.on('accountsChanged', handleAccounts);
+      }
 
       // Check current connection
-      (window as any).ethereum.request({ method: 'eth_accounts' })
-        .then(handleAccounts)
-        .catch(console.error);
+      if (provider.request) {
+        provider.request({ method: 'eth_accounts' })
+          .then(handleAccounts)
+          .catch((err: any) => {
+            console.warn('[Web3] Failed to query accounts:', err);
+          });
+      }
+    };
 
-      return () => {
-        if ((window as any).ethereum.removeListener) {
-          (window as any).ethereum.removeListener('accountsChanged', handleAccounts);
-        }
+    const checkAndInit = () => {
+      const provider = getEthereumProvider();
+      if (provider) {
+        if (checkInterval) clearInterval(checkInterval);
+        initWalletListener(provider);
+        return true;
+      }
+      return false;
+    };
+
+    // Try immediately on mount
+    if (!checkAndInit()) {
+      // Listen for the standard MetaMask initialization event
+      const onInitialized = () => {
+        checkAndInit();
       };
+      window.addEventListener('ethereum#initialized', onInitialized);
+
+      // Defensively poll every 150ms for 2 seconds (13 attempts)
+      let attempts = 0;
+      checkInterval = setInterval(() => {
+        attempts++;
+        if (checkAndInit() || attempts >= 13) {
+          clearInterval(checkInterval);
+        }
+      }, 150);
     }
+
+    return () => {
+      isCleanedUp = true;
+      if (checkInterval) clearInterval(checkInterval);
+      window.removeEventListener('ethereum#initialized', () => {});
+      if (activeProvider && activeProvider.removeListener) {
+        activeProvider.removeListener('accountsChanged', handleAccounts);
+      }
+    };
   }, []);
 
   // 2. Connect Wallet
   const connectWallet = async () => {
-    if (typeof window === 'undefined' || !(window as any).ethereum) {
-      setErrorMsg('No dApp wallet found. Please install MetaMask or Rabby.');
+    const provider = getEthereumProvider();
+    if (!provider) {
+      setErrorMsg('No Web3 wallet found. Please install or enable MetaMask or Rabby.');
       setStatus('error');
       return;
     }
     try {
       setStatus('connecting');
       setErrorMsg(null);
-      const accounts = await (window as any).ethereum.request({ method: 'eth_requestAccounts' });
-      if (accounts.length > 0) {
-        localStorage.removeItem('wallet_disconnected'); // Clear disconnection flag on manual connect
-        setAccount(accounts[0]);
-        setStatus('connected');
+      if (provider.request) {
+        const accounts = await provider.request({ method: 'eth_requestAccounts' });
+        if (accounts.length > 0) {
+          localStorage.removeItem('wallet_disconnected'); // Clear disconnection flag on manual connect
+          setAccount(accounts[0]);
+          setStatus('connected');
+        } else {
+          setStatus('disconnected');
+        }
       } else {
-        setStatus('disconnected');
+        throw new Error('Wallet provider does not support RPC requests.');
       }
     } catch (err: any) {
       console.error('Wallet connection error:', err);
@@ -329,7 +395,8 @@ export default function Web3ReportButton({ stats }: Props) {
 
   // 4. Process USDC Payment and trigger download
   const triggerPaymentAndDownload = async () => {
-    if (typeof window === 'undefined' || !(window as any).ethereum) {
+    const provider = getEthereumProvider();
+    if (!provider) {
       setErrorMsg('No wallet connected.');
       setStatus('error');
       return;
@@ -345,8 +412,8 @@ export default function Web3ReportButton({ stats }: Props) {
         throw new Error('USDC Address or Treasury Address not configured.');
       }
 
-      const provider = new ethers.BrowserProvider((window as any).ethereum);
-      const signer = await provider.getSigner();
+      const browserProvider = new ethers.BrowserProvider(provider);
+      const signer = await browserProvider.getSigner();
 
       // Instantiate USDC ERC-20 contract
       const usdcContract = new ethers.Contract(usdcAddress, ERC20_ABI, signer);
