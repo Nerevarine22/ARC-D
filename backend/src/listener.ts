@@ -207,7 +207,7 @@ export async function startListener(): Promise<void> {
 
   // Scan historical events in batches, and continue polling for live events
   try {
-    const BATCH_SIZE = 10000;
+    const BATCH_SIZE = 2000;
 
     // Query current block height first
     const currentBlockAtStart = await provider.getBlockNumber().catch(() => START_BLOCK);
@@ -363,7 +363,7 @@ export async function startListener(): Promise<void> {
         await saveLastScannedBlock(toBlock);
 
         // Small delay between successful chunks to be polite to the RPC
-        await new Promise(r => setTimeout(r, 500));
+        await new Promise(r => setTimeout(r, 800));
 
       } catch (err: any) {
         console.warn(`[Listener] ⚠️  RPC Error range ${fromBlock}-${toBlock}: ${err.message?.substring(0, 100)}. Retrying in 2s...`);
