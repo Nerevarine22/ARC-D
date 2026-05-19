@@ -465,8 +465,8 @@ export default function Web3ReportButton({ stats }: Props) {
       setStatus('paying');
       setErrorMsg(null);
 
-      const usdcAddress = import.meta.env.VITE_USDC_ADDRESS;
-      const treasuryAddress = import.meta.env.VITE_TREASURY_ADDRESS;
+      const usdcAddress = import.meta.env.VITE_USDC_ADDRESS || "0x3600000000000000000000000000000000000000";
+      const treasuryAddress = import.meta.env.VITE_TREASURY_ADDRESS || "0x43675dd92a75e03c6da7cffc6d6960a5d0096abd";
 
       if (!usdcAddress || !treasuryAddress) {
         throw new Error('USDC Address or Treasury Address not configured.');
