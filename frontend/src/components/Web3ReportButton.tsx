@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { ethers } from 'ethers';
 import { collection, getDocs, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebase';
@@ -20,13 +20,38 @@ export default function Web3ReportButton({ stats }: Props) {
   const [status, setStatus] = useState<ButtonState>('disconnected');
   const [account, setAccount] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [announcedProviders, setAnnouncedProviders] = useState<any[]>([]);
+  const [hasStandardEthereum, setHasStandardEthereum] = useState(false);
+  const providersRef = useRef<any[]>([]);
 
-  // Helper to safely discover and get the injected ethereum provider (handling timing + conflicts)
+  // Helper to safely discover and get the injected ethereum provider (handling EIP-6963 + timing + conflicts)
   const getEthereumProvider = () => {
     if (typeof window === 'undefined') return null;
+
     const anyWindow = window as any;
 
-    // If multiple providers are injected (e.g. MetaMask + Rabby), some wallets populate window.ethereum.providers
+    // 1. Check EIP-6963 announced providers first (most reliable, avoids provider conflicts)
+    if (providersRef.current && providersRef.current.length > 0) {
+      // Prefer Rabby or MetaMask if they are among the announced providers
+      const preferred = providersRef.current.find(
+        (p: any) => p.info.name.toLowerCase().includes('rabby') || p.info.name.toLowerCase().includes('metamask')
+      );
+      if (preferred) return preferred.provider;
+      return providersRef.current[0].provider;
+    }
+
+    // 2. Direct wallet namespaces (extremely reliable when window.ethereum is hijacked)
+    if (anyWindow.rabby) {
+      return anyWindow.rabby;
+    }
+    if (anyWindow.phantom?.ethereum) {
+      return anyWindow.phantom.ethereum;
+    }
+    if (anyWindow.okxwallet) {
+      return anyWindow.okxwallet;
+    }
+
+    // 3. If multiple providers are injected in window.ethereum (MetaMask + Rabby conflicts)
     if (anyWindow.ethereum?.providers?.length) {
       // Prefer MetaMask or Rabby if present, otherwise fallback to the first active provider
       const preferred = anyWindow.ethereum.providers.find((p: any) => p.isMetaMask || p.isRabby);
@@ -34,6 +59,7 @@ export default function Web3ReportButton({ stats }: Props) {
       return anyWindow.ethereum.providers[0];
     }
 
+    // 4. Simple fallback to standard window.ethereum injection
     return anyWindow.ethereum || null;
   };
 
@@ -42,6 +68,10 @@ export default function Web3ReportButton({ stats }: Props) {
     let checkInterval: any = null;
     let isCleanedUp = false;
     let activeProvider: any = null;
+
+    if (typeof window !== 'undefined' && (window as any).ethereum) {
+      setHasStandardEthereum(true);
+    }
 
     const handleAccounts = (accounts: string[]) => {
       const isDisconnected = localStorage.getItem('wallet_disconnected') === 'true';
@@ -57,6 +87,14 @@ export default function Web3ReportButton({ stats }: Props) {
 
     const initWalletListener = (provider: any) => {
       if (isCleanedUp || !provider) return;
+      
+      // If switching to a new/better provider, clean up listeners on the old one
+      if (activeProvider && activeProvider !== provider) {
+        if (activeProvider.removeListener) {
+          activeProvider.removeListener('accountsChanged', handleAccounts);
+        }
+      }
+      
       activeProvider = provider;
 
       // Subscribe to changes safely
@@ -77,35 +115,57 @@ export default function Web3ReportButton({ stats }: Props) {
     const checkAndInit = () => {
       const provider = getEthereumProvider();
       if (provider) {
-        if (checkInterval) clearInterval(checkInterval);
         initWalletListener(provider);
         return true;
       }
       return false;
     };
 
-    // Try immediately on mount
-    if (!checkAndInit()) {
-      // Listen for the standard MetaMask initialization event
-      const onInitialized = () => {
-        checkAndInit();
-      };
-      window.addEventListener('ethereum#initialized', onInitialized);
+    // EIP-6963 event announcements listener
+    const handleAnnounce = (event: any) => {
+      const detail = event.detail; // EIP6963ProviderDetail
+      if (!detail || !detail.provider) return;
 
-      // Defensively poll every 150ms for 2 seconds (13 attempts)
-      let attempts = 0;
-      checkInterval = setInterval(() => {
-        attempts++;
-        if (checkAndInit() || attempts >= 13) {
-          clearInterval(checkInterval);
-        }
-      }, 150);
-    }
+      // Avoid duplicates
+      if (providersRef.current.some(p => p.info.uuid === detail.info.uuid)) return;
+
+      const updated = [...providersRef.current, detail];
+      providersRef.current = updated;
+      setAnnouncedProviders(updated);
+
+      console.log(`[Web3] EIP-6963 Wallet announced: ${detail.info.name} (${detail.info.uuid})`);
+      
+      // Proactively try initialization once a provider announces itself
+      checkAndInit();
+    };
+
+    window.addEventListener("eip6963:announceProvider", handleAnnounce as any);
+    window.dispatchEvent(new Event("eip6963:requestProvider"));
+
+    // Standard MetaMask initialization listener
+    const onInitialized = () => {
+      checkAndInit();
+    };
+    window.addEventListener('ethereum#initialized', onInitialized);
+
+    // Try immediately on mount
+    checkAndInit();
+
+    // Defensively poll every 150ms for 2 seconds (13 attempts) to handle late wallet injectors
+    let attempts = 0;
+    checkInterval = setInterval(() => {
+      attempts++;
+      checkAndInit();
+      if (attempts >= 13) {
+        clearInterval(checkInterval);
+      }
+    }, 150);
 
     return () => {
       isCleanedUp = true;
       if (checkInterval) clearInterval(checkInterval);
-      window.removeEventListener('ethereum#initialized', () => {});
+      window.removeEventListener('ethereum#initialized', onInitialized);
+      window.removeEventListener('eip6963:announceProvider', handleAnnounce as any);
       if (activeProvider && activeProvider.removeListener) {
         activeProvider.removeListener('accountsChanged', handleAccounts);
       }
@@ -479,87 +539,89 @@ export default function Web3ReportButton({ stats }: Props) {
 
       {/* Primary Action Button */}
       <button
-        onClick={status === 'disconnected' ? connectWallet : triggerPaymentAndDownload}
+        onClick={!account ? connectWallet : triggerPaymentAndDownload}
         disabled={status === 'paying' || status === 'generating' || status === 'connecting'}
         className={`px-3 py-1.5 rounded-sm text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex items-center gap-2 border select-none active:scale-[0.98] cursor-pointer
-          ${status === 'disconnected' 
-            ? 'bg-status-amber/10 border-status-amber/40 text-status-amber hover:bg-status-amber hover:text-black hover:shadow-[0_0_12px_rgba(245,158,11,0.4)]' 
-            : ''
-          }
-          ${status === 'connecting' 
-            ? 'bg-bg-tertiary border-border-default text-text-muted animate-pulse cursor-wait' 
-            : ''
-          }
-          ${status === 'connected' 
-            ? 'bg-status-green/10 border-status-green/40 text-status-green hover:bg-status-green hover:text-black hover:shadow-[0_0_12px_rgba(34,197,94,0.4)]' 
-            : ''
-          }
-          ${status === 'paying' 
-            ? 'bg-status-red/10 border-status-red/40 text-status-red cursor-wait' 
-            : ''
-          }
-          ${status === 'generating' 
-            ? 'bg-status-green/10 border-status-green/40 text-status-green cursor-wait' 
-            : ''
-          }
-          ${status === 'success' 
-            ? 'bg-status-green border-status-green text-black font-bold shadow-[0_0_12px_rgba(34,197,94,0.3)]' 
-            : ''
-          }
-          ${status === 'error' 
-            ? 'bg-status-red/20 border-status-red text-status-red hover:bg-status-red hover:text-white' 
-            : ''
+          ${!account
+            ? (status === 'connecting'
+                ? 'bg-bg-tertiary border-border-default text-text-muted animate-pulse cursor-wait'
+                : status === 'error'
+                  ? 'bg-status-red/20 border-status-red text-status-red hover:bg-status-red hover:text-white'
+                  : 'bg-status-amber/10 border-status-amber/40 text-status-amber hover:bg-status-amber hover:text-black hover:shadow-[0_0_12px_rgba(245,158,11,0.4)]'
+              )
+            : (status === 'connected'
+                ? 'bg-status-green/10 border-status-green/40 text-status-green hover:bg-status-green hover:text-black hover:shadow-[0_0_12px_rgba(34,197,94,0.4)]'
+                : status === 'paying'
+                  ? 'bg-status-red/10 border-status-red/40 text-status-red cursor-wait'
+                  : status === 'generating'
+                    ? 'bg-status-green/10 border-status-green/40 text-status-green cursor-wait'
+                    : status === 'success'
+                      ? 'bg-status-green border-status-green text-black font-bold shadow-[0_0_12px_rgba(34,197,94,0.3)]'
+                      : status === 'error'
+                        ? 'bg-status-red/20 border-status-red text-status-red hover:bg-status-red hover:text-white'
+                        : 'bg-status-green/10 border-status-green/40 text-status-green hover:bg-status-green hover:text-black'
+              )
           }
         `}
       >
         {/* State Icons */}
-        {status === 'disconnected' && (
+        {!account && status !== 'connecting' && (
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
           </svg>
         )}
         
-        {status === 'connecting' && (
+        {!account && status === 'connecting' && (
           <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
           </svg>
         )}
 
-        {(status === 'connected' || status === 'error') && (
+        {account && (status === 'connected' || status === 'error') && (
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
           </svg>
         )}
 
-        {(status === 'paying' || status === 'generating') && (
+        {account && (status === 'paying' || status === 'generating') && (
           <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
           </svg>
         )}
 
-        {status === 'success' && (
+        {account && status === 'success' && (
           <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
             <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
           </svg>
         )}
 
         {/* State Label */}
-        {status === 'disconnected' && 'Connect Wallet'}
-        {status === 'connecting' && 'Connecting...'}
-        {status === 'connected' && 'Download Intelligence PDF (5 USDC)'}
-        {status === 'paying' && 'Processing Payment in ARC Testnet... ⏳'}
-        {status === 'generating' && 'Generating Intelligence Report... 📊'}
-        {status === 'success' && 'Download Complete!'}
-        {status === 'error' && 'Payment Failed (Retry)'}
+        {!account && (status === 'connecting' ? 'Connecting...' : status === 'error' ? 'Connection Failed (Retry)' : 'Connect Wallet')}
+        {account && status === 'connected' && 'Download Intelligence PDF (5 USDC)'}
+        {account && status === 'paying' && 'Processing Payment in ARC Testnet... ⏳'}
+        {account && status === 'generating' && 'Generating Intelligence Report... 📊'}
+        {account && status === 'success' && 'Download Complete!'}
+        {account && status === 'error' && 'Payment Failed (Retry)'}
       </button>
+
+      {/* Wallet Discovery Indicator */}
+      {!account && (
+        <div className="absolute right-0 top-full mt-1 text-[9px] text-text-muted tracking-tight whitespace-nowrap">
+          {announcedProviders.length > 0 ? (
+            <span>Detected: {announcedProviders.map(p => p.info.name).join(', ')}</span>
+          ) : (
+            hasStandardEthereum ? <span>Detected standard Web3 injection</span> : <span>No wallet detected</span>
+          )}
+        </div>
+      )}
 
       {/* Floating Error Tooltip */}
       {errorMsg && (
-        <div className="absolute right-0 top-full mt-2 w-64 bg-status-red/95 border border-status-red text-white p-2.5 rounded-sm text-[10px] leading-relaxed shadow-xl z-50">
+        <div className="absolute right-0 top-full mt-2.5 w-64 bg-status-red/95 border border-status-red text-white p-2.5 rounded-sm text-[10px] leading-relaxed shadow-xl z-50">
           <div className="font-bold mb-0.5 flex items-center gap-1">
-            <span>⚠️ PAYMENT ERROR</span>
+            <span>⚠️ {account ? 'PAYMENT ERROR' : 'CONNECTION ERROR'}</span>
             <button 
               onClick={(e) => { e.stopPropagation(); setErrorMsg(null); }}
               className="ml-auto hover:text-black font-bold uppercase cursor-pointer"
