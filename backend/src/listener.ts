@@ -134,12 +134,22 @@ export async function startListener(): Promise<void> {
     console.log(`[Listener] 💾 Last scanned block loaded from database: ${dbLastScanned}`);
 
     let fromBlock = dbLastScanned;
-    if (fromBlock === 0) {
+    if (process.env.FORCE_SCAN_FROM_HEAD === 'true') {
+      fromBlock = Math.max(START_BLOCK, currentBlockAtStart - 2000);
+      console.log(`[Listener] ⚡ FORCE_SCAN_FROM_HEAD is active. Fast-forwarding scan to block ${fromBlock} (current head ${currentBlockAtStart} minus 2000 blocks).`);
+    } else if (fromBlock === 0) {
       // If no state exists in database, start from the current block minus a small buffer of 1,000 blocks
       fromBlock = Math.max(START_BLOCK, currentBlockAtStart - 1000);
       console.log(`[Listener] ℹ️ No previous scan state found. Starting incrementally from block ${fromBlock} (current network head ${currentBlockAtStart} minus 1,000 blocks buffer)`);
     } else if (fromBlock < START_BLOCK) {
       fromBlock = START_BLOCK;
+    }
+
+    const blockGap = currentBlockAtStart - fromBlock;
+    if (blockGap > 50000 && process.env.FORCE_SCAN_FROM_HEAD !== 'true') {
+      console.log(`\n[Listener] ⚠️  WARNING: Scanner is lagging behind the network head by ${blockGap} blocks!`);
+      console.log(`[Listener] ℹ️  Scanning this huge range in chunks of ${BATCH_SIZE} will take a long time.`);
+      console.log(`[Listener] 💡 TIP: Add FORCE_SCAN_FROM_HEAD=true to your .env to skip the gap and start scanning from the latest block.\n`);
     }
 
     console.log(`[Listener] 📜 Initiating scan from block ${fromBlock} (Chunks of ${BATCH_SIZE})...`);
