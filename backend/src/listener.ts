@@ -133,23 +133,28 @@ export async function startListener(): Promise<void> {
     const dbLastScanned = await getLastScannedBlock(0);
     console.log(`[Listener] 💾 Last scanned block loaded from database: ${dbLastScanned}`);
 
-    let fromBlock = dbLastScanned;
-    if (process.env.FORCE_SCAN_FROM_HEAD === 'true') {
-      fromBlock = Math.max(START_BLOCK, currentBlockAtStart - 2000);
-      console.log(`[Listener] ⚡ FORCE_SCAN_FROM_HEAD is active. Fast-forwarding scan to block ${fromBlock} (current head ${currentBlockAtStart} minus 2000 blocks).`);
-    } else if (fromBlock === 0) {
-      // If no state exists in database, start from the current block minus a small buffer of 1,000 blocks
-      fromBlock = Math.max(START_BLOCK, currentBlockAtStart - 1000);
-      console.log(`[Listener] ℹ️ No previous scan state found. Starting incrementally from block ${fromBlock} (current network head ${currentBlockAtStart} minus 1,000 blocks buffer)`);
-    } else if (fromBlock < START_BLOCK) {
-      fromBlock = START_BLOCK;
-    }
+    // Safety buffer (100 blocks) to check for very recent events without lagging the RPC
+    const SAFETY_BUFFER = 100;
+    const currentHeadMinSafety = Math.max(0, currentBlockAtStart - SAFETY_BUFFER);
 
-    const blockGap = currentBlockAtStart - fromBlock;
-    if (blockGap > 50000 && process.env.FORCE_SCAN_FROM_HEAD !== 'true') {
-      console.log(`\n[Listener] ⚠️  WARNING: Scanner is lagging behind the network head by ${blockGap} blocks!`);
-      console.log(`[Listener] ℹ️  Scanning this huge range in chunks of ${BATCH_SIZE} will take a long time.`);
-      console.log(`[Listener] 💡 TIP: Add FORCE_SCAN_FROM_HEAD=true to your .env to skip the gap and start scanning from the latest block.\n`);
+    // Limit active lag to prevent heavy historical crawling (history is already indexed in database)
+    const MAX_LAG_ALLOWED = 5000;
+
+    let fromBlock = dbLastScanned;
+
+    if (fromBlock === 0 || (currentBlockAtStart - fromBlock) > MAX_LAG_ALLOWED || process.env.FORCE_SCAN_FROM_HEAD === 'true') {
+      if (fromBlock > 0 && process.env.FORCE_SCAN_FROM_HEAD !== 'true') {
+        console.log(`[Listener] ℹ️ Stored state (${fromBlock}) lags behind network head by ${currentBlockAtStart - fromBlock} blocks.`);
+        console.log(`[Listener] 🚀 Discarding outdated scan state. (History is already collected in the database).`);
+      } else if (process.env.FORCE_SCAN_FROM_HEAD === 'true') {
+        console.log(`[Listener] ⚡ FORCE_SCAN_FROM_HEAD is active.`);
+      } else {
+        console.log(`[Listener] ℹ️ No previous scan state found.`);
+      }
+      fromBlock = currentHeadMinSafety;
+      console.log(`[Listener] ⚡ Lock-starting scan near current head at block ${fromBlock} (network head: ${currentBlockAtStart}, buffer: ${SAFETY_BUFFER} blocks).`);
+    } else {
+      console.log(`[Listener] ✅ Stored state is fresh (lag: ${currentBlockAtStart - fromBlock} blocks). Resuming from block ${fromBlock}.`);
     }
 
     console.log(`[Listener] 📜 Initiating scan from block ${fromBlock} (Chunks of ${BATCH_SIZE})...`);
