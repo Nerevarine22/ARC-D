@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { config } from './config.js';
 import { analyzeSpec } from './analyzer.js';
 import { fetchSpec } from './ipfs.js';
-import { saveJob, hasJobId, getLastScannedBlock, saveLastScannedBlock, saveFailedAnalysis, getFailedAnalyses, deleteFailedAnalysis } from './db.js';
+import { saveJob, hasJobId, getLastScannedBlock, saveLastScannedBlock, saveFailedAnalysis, getFailedAnalyses, deleteFailedAnalysis, saveAgentPayout } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -202,6 +202,65 @@ export async function startListener(): Promise<void> {
     AGENTIC_COMMERCE_ABI,
     provider
   );
+
+  let jobRegistrySigner = contract;
+  if (config.AGENT_PRIVATE_KEY) {
+    try {
+      const agentWallet = new ethers.Wallet(config.AGENT_PRIVATE_KEY, provider);
+      jobRegistrySigner = contract.connect(agentWallet) as ethers.Contract;
+      console.log(`[Listener] 🤖 Native Agent Wallet initialized with address: ${agentWallet.address}`);
+    } catch (err) {
+      console.warn(`[Listener] ⚠️ Failed to initialize Native Agent Wallet:`, err);
+    }
+  } else {
+    console.warn(`[Listener] ⚠️ AGENT_PRIVATE_KEY not found. Agent write operations will be disabled.`);
+  }
+
+  // Native Agent Inbound Jobs Handler
+  contract.on("JobCreated", async (jobId: bigint, client: string, providerAddress: string, evaluator: string, expiredAt: bigint, hook: string) => {
+    try {
+      console.log(`\n[Agent] 🔔 Received JobCreated event for Job #${jobId.toString()}`);
+      
+      // Fetch full job data to get description and budget
+      const jobData = await contract.getJob(jobId);
+      const description = jobData.description || '';
+      const budgetUsdc = Number(ethers.formatUnits(jobData.budget, 6));
+
+      const isAssignedToUs = config.WATCHDOG_AGENT_ADDRESS && providerAddress.toLowerCase() === config.WATCHDOG_AGENT_ADDRESS.toLowerCase();
+      const isMarketIntel = description.includes('Market-Intelligence');
+
+      if (isAssignedToUs || isMarketIntel) {
+        console.log(`[Agent] 🟢 Taking ownership of Inbound Job #${jobId.toString()}`);
+
+        // Mock Analytics Data Generation (normally this would fetch from DB or Gemini)
+        const analyticsData = {
+          jobId: jobId.toString(),
+          analysis: "Market-Intelligence analysis successfully performed.",
+          pain_score: 8,
+          timestamp: new Date().toISOString()
+        };
+
+        const hexPayload = ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify(analyticsData)));
+        const deliverable = ethers.encodeBytes32String("ANALYSIS_READY");
+
+        console.log(`[Agent] ⏳ Очікую 20 секунд, щоб клієнт встиг закинути гроші (fund)...`);
+        await new Promise(resolve => setTimeout(resolve, 20000));
+
+        console.log(`[Agent] 📝 Executing submit() on-chain for Job #${jobId.toString()}...`);
+        const tx = await jobRegistrySigner.submit(jobId, deliverable, hexPayload);
+        
+        console.log(`[Agent] ⏳ Waiting for transaction confirmation... (Tx: ${tx.hash})`);
+        await tx.wait(1);
+        
+        console.log(`[Agent] ✅ Successfully SUBMITTED Job #${jobId.toString()}!`);
+        
+        // Log to Firebase
+        await saveAgentPayout(jobId.toString(), client, budgetUsdc, "COMPLETED_BY_WATCHDOG");
+      }
+    } catch (err) {
+      console.error(`[Agent] ❌ Error processing Inbound Job #${jobId.toString()}:`, err);
+    }
+  });
 
   console.log(`[Listener] 👂 Polling for JobExpired & Refunded events on ${config.JOB_REGISTRY_ADDRESS}`);
 

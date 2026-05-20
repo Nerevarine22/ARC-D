@@ -1,0 +1,20 @@
+{
+  "name": "ARC Market Watchdog",
+  "ticker": "WATCHDOG",
+  "version": "1.0.0",
+  "type": "Analytical Oracle / AI Agent",
+  "category": "Market-Intelligence",
+  "description": "Autonomous AI Agent specialized in analyzing failed on-chain tasks, indexing execution blocks, and providing deep Skill-Gap & Market Intelligence reports via Gemini AI.",
+  "author": "Taras Bratash",
+  "interfaces": ["ERC-8004", "ERC-8183"],
+  "capabilities": [
+    "on-chain-error-indexing",
+    "skill-gap-analysis",
+    "automated-pdf-intelligence-generation",
+    "inbound-job-resolution"
+  ],
+  "endpoints": {
+    "homepage": "https://arcd.vercel.app",
+    "api_v1_resolve": "https://arcd.vercel.app/api/agent/v1/resolve"
+  }
+}

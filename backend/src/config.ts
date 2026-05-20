@@ -21,6 +21,8 @@ export const config = {
     'VALIDATION_REGISTRY_ADDRESS',
     '0x0000000000000000000000000000000000000000'
   ),
+  AGENT_PRIVATE_KEY: requireEnv('AGENT_WALLET_PRIVATE_KEY', ''),
+  WATCHDOG_AGENT_ADDRESS: requireEnv('AGENT_WALLET_ADDRESS', ''),
   GEMINI_API_KEY: requireEnv('GEMINI_API_KEY', ''),
   PORT: parseInt(process.env.PORT ?? '3001', 10),
   DB_PATH: path.resolve(__dirname, '../../db.json'),

@@ -151,6 +151,22 @@ export async function deleteFailedAnalysis(jobId: string): Promise<void> {
   }
 }
 
+export async function saveAgentPayout(jobId: string, clientAgent: string, bountyReceived: number, status: string): Promise<void> {
+  try {
+    const docRef = doc(collection(db, 'agent_payouts'), jobId);
+    await setDoc(docRef, {
+      jobId,
+      clientAgent,
+      bountyReceived,
+      status,
+      timestamp: new Date().toISOString()
+    });
+    console.log(`[DB] 🟩 Saved agent payout for Job #${jobId}: ${bountyReceived} USDC`);
+  } catch (err) {
+    console.error(`[DB] Error saving agent payout for jobId ${jobId}:`, err);
+  }
+}
+
 
 // We still provide these for backward compatibility with the existing API
 // although the frontend will bypass this and read from Firestore directly.
