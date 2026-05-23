@@ -234,7 +234,7 @@ export async function startListener(): Promise<void> {
 
       for (const event of createdEvents) {
         if (!('args' in event) || !event.args) continue;
-        const [jobId, client, providerAddress] = event.args as [bigint, string, string];
+        const [jobId, client, providerAddress] = event.args as unknown as [bigint, string, string];
         const jId = jobId.toString();
 
         if (pendingAgentJobs.has(jId) || submittedJobs.has(jId)) continue;
@@ -259,7 +259,7 @@ export async function startListener(): Promise<void> {
 
       for (const event of fundedEvents) {
         if (!('args' in event) || !event.args) continue;
-        const [jobId, client, amount] = event.args as [bigint, string, bigint];
+        const [jobId, client, amount] = event.args as unknown as [bigint, string, bigint];
         const jId = jobId.toString();
 
         const pending = pendingAgentJobs.get(jId);
