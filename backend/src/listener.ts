@@ -6,7 +6,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { config } from './config.js';
 import { analyzeSpec } from './analyzer.js';
 import { fetchSpec } from './ipfs.js';
-import { saveJob, hasJobId, getLastScannedBlock, saveLastScannedBlock, saveFailedAnalysis, getFailedAnalyses, deleteFailedAnalysis, saveAgentPayout } from './db.js';
+import { saveJob, hasJobId, getLastScannedBlock, saveLastScannedBlock, saveFailedAnalysis, getFailedAnalyses, deleteFailedAnalysis, saveAgentPayout, getStats } from './db.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -290,13 +290,20 @@ export async function startListener(): Promise<void> {
               };
             }
 
+            // ── Fetch Dashboard Analytics Data ────────────────────────────────
+            const stats = await getStats();
+            const topSkillsNames = stats.topSkills.map(s => s.skill).slice(0, 5);
+
             // ── Build on-chain payload ────────────────────────────────────────
             const analyticsData = {
               jobId: jId,
-              category: analysis.category,
-              pain_score: analysis.pain_score,
-              missing_skills: analysis.missing_skills,
-              summary: analysis.summary_en,
+              report_summary: analysis.summary_en,
+              market_intelligence: {
+                total_failed_jobs: stats.totalJobs,
+                total_usdc_left_on_table: stats.totalUsdcLost,
+                top_missing_skills_in_market: topSkillsNames,
+                category_breakdown: stats.byCategory
+              },
               timestamp: new Date().toISOString()
             };
 
