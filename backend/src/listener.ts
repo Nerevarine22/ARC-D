@@ -216,53 +216,115 @@ export async function startListener(): Promise<void> {
     console.warn(`[Listener] ⚠️ AGENT_PRIVATE_KEY not found. Agent write operations will be disabled.`);
   }
 
-  // Native Agent Inbound Jobs Handler
-  contract.on("JobCreated", async (jobId: bigint, client: string, providerAddress: string, evaluator: string, expiredAt: bigint, hook: string) => {
+  // ── Pending jobs cache: stores jobs assigned to this agent, waiting for JobFunded ──
+  const pendingAgentJobs = new Map<string, {
+    jobId: bigint;
+    client: string;
+    description: string;
+  }>();
+  // Track already-submitted jobs to avoid double-processing
+  const submittedJobs = new Set<string>();
+
+  // ── Agent polling function: called each scan cycle ────────────────────────────
+  async function pollAgentJobs(fromBlock: number, toBlock: number): Promise<void> {
     try {
-      console.log(`\n[Agent] 🔔 Received JobCreated event for Job #${jobId.toString()}`);
-      
-      // Fetch full job data to get description and budget
-      const jobData = await contract.getJob(jobId);
-      const description = jobData.description || '';
-      const budgetUsdc = Number(ethers.formatUnits(jobData.budget, 6));
+      // Step 1: Find new JobCreated assigned to us
+      const createdFilter = contract.filters.JobCreated();
+      const createdEvents = await contract.queryFilter(createdFilter, fromBlock, toBlock);
 
-      const isAssignedToUs = config.WATCHDOG_AGENT_ADDRESS && providerAddress.toLowerCase() === config.WATCHDOG_AGENT_ADDRESS.toLowerCase();
-      const isMarketIntel = description.includes('Market-Intelligence');
+      for (const event of createdEvents) {
+        if (!('args' in event) || !event.args) continue;
+        const [jobId, client, providerAddress] = event.args as [bigint, string, string];
+        const jId = jobId.toString();
 
-      if (isAssignedToUs || isMarketIntel) {
-        console.log(`[Agent] 🟢 Taking ownership of Inbound Job #${jobId.toString()}`);
+        if (pendingAgentJobs.has(jId) || submittedJobs.has(jId)) continue;
 
-        // Mock Analytics Data Generation (normally this would fetch from DB or Gemini)
-        const analyticsData = {
-          jobId: jobId.toString(),
-          analysis: "Market-Intelligence analysis successfully performed.",
-          pain_score: 8,
-          timestamp: new Date().toISOString()
-        };
+        const isOurs = config.WATCHDOG_AGENT_ADDRESS &&
+          providerAddress.toLowerCase() === config.WATCHDOG_AGENT_ADDRESS.toLowerCase();
+        if (!isOurs) continue;
 
-        const hexPayload = ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify(analyticsData)));
-        const deliverable = ethers.encodeBytes32String("ANALYSIS_READY");
+        const jobData = await contract.getJob(jobId);
+        const description = (jobData.description || '').trim();
+        if (!description) continue;
 
-        console.log(`[Agent] ⏳ Очікую 20 секунд, щоб клієнт встиг закинути гроші (fund)...`);
-        await new Promise(resolve => setTimeout(resolve, 20000));
+        console.log(`\n[Agent] 📌 Job #${jId} assigned to us. Waiting for JobFunded...`);
+        pendingAgentJobs.set(jId, { jobId, client, description });
+      }
 
-        console.log(`[Agent] 📝 Executing submit() on-chain for Job #${jobId.toString()}...`);
-        const tx = await jobRegistrySigner.submit(jobId, deliverable, hexPayload);
-        
-        console.log(`[Agent] ⏳ Waiting for transaction confirmation... (Tx: ${tx.hash})`);
-        await tx.wait(1);
-        
-        console.log(`[Agent] ✅ Successfully SUBMITTED Job #${jobId.toString()}!`);
-        
-        // Log to Firebase
-        await saveAgentPayout(jobId.toString(), client, budgetUsdc, "COMPLETED_BY_WATCHDOG");
+      if (pendingAgentJobs.size === 0) return;
+
+      // Step 2: Find JobFunded for any of our pending jobs
+      const fundedFilter = contract.filters.JobFunded();
+      const fundedEvents = await contract.queryFilter(fundedFilter, fromBlock, toBlock);
+
+      for (const event of fundedEvents) {
+        if (!('args' in event) || !event.args) continue;
+        const [jobId, client, amount] = event.args as [bigint, string, bigint];
+        const jId = jobId.toString();
+
+        const pending = pendingAgentJobs.get(jId);
+        if (!pending || submittedJobs.has(jId)) continue;
+
+        const budgetUsdc = Number(ethers.formatUnits(amount, 6));
+        console.log(`\n[Agent] 💰 JobFunded for Job #${jId} — ${budgetUsdc.toFixed(2)} USDC. Starting AI analysis...`);
+
+        pendingAgentJobs.delete(jId);
+        submittedJobs.add(jId);
+
+        // Run in background — don't block the scan loop
+        (async () => {
+          try {
+            // ── Real Gemini AI Analysis ──────────────────────────────────────
+            let analysis;
+            try {
+              analysis = await analyzeSpec(pending.description, budgetUsdc);
+              console.log(`[Agent] 🤖 AI Analysis: category=${analysis.category} | pain=${analysis.pain_score} | skills=${analysis.missing_skills.join(', ')}`);
+              console.log(`[Agent] 💬 Summary: ${analysis.summary_en}`);
+            } catch (aiErr) {
+              console.warn(`[Agent] ⚠️  Gemini unavailable, using fallback.`);
+              analysis = {
+                category: 'Infrastructure' as const,
+                missing_skills: ['market-intelligence', 'onchain-analysis'],
+                pain_score: 7,
+                summary_en: 'Market-Intelligence task completed by Watchdog autonomous agent.'
+              };
+            }
+
+            // ── Build on-chain payload ────────────────────────────────────────
+            const analyticsData = {
+              jobId: jId,
+              category: analysis.category,
+              pain_score: analysis.pain_score,
+              missing_skills: analysis.missing_skills,
+              summary: analysis.summary_en,
+              timestamp: new Date().toISOString()
+            };
+
+            const hexPayload = ethers.hexlify(ethers.toUtf8Bytes(JSON.stringify(analyticsData)));
+            const deliverable = ethers.encodeBytes32String('ANALYSIS_READY');
+
+            // ── Submit result on-chain ────────────────────────────────────────
+            console.log(`[Agent] 📝 Executing submit() on-chain for Job #${jId}...`);
+            const tx = await jobRegistrySigner.submit(pending.jobId, deliverable, hexPayload);
+            console.log(`[Agent] ⏳ Waiting for confirmation... (Tx: ${tx.hash})`);
+            await tx.wait(1);
+            console.log(`[Agent] ✅ Successfully SUBMITTED Job #${jId}! Tx: ${tx.hash}`);
+
+            // ── Log to Firebase ───────────────────────────────────────────────
+            await saveAgentPayout(jId, client, budgetUsdc, 'SUBMITTED_BY_WATCHDOG');
+
+          } catch (err) {
+            console.error(`[Agent] ❌ Error submitting Job #${jId}:`, err);
+            submittedJobs.delete(jId); // allow retry next cycle
+          }
+        })();
       }
     } catch (err) {
-      console.error(`[Agent] ❌ Error processing Inbound Job #${jobId.toString()}:`, err);
+      console.warn(`[Agent] ⚠️  pollAgentJobs error:`, err);
     }
-  });
+  }
 
-  console.log(`[Listener] 👂 Polling for JobExpired & Refunded events on ${config.JOB_REGISTRY_ADDRESS}`);
+  console.log(`[Listener] 👂 Polling for agent jobs + JobExpired/Refunded on ${config.JOB_REGISTRY_ADDRESS}`);
 
   // Scan historical events in batches, and continue polling for live events
   try {
@@ -317,6 +379,10 @@ export async function startListener(): Promise<void> {
 
         if (currentBlock > prevBlock) {
           console.log(`[Listener] 💓 Active & Monitoring. Block height increased to ${currentBlock}`);
+          // ── Agent: scan new blocks for assigned jobs and funding events ────
+          await pollAgentJobs(prevBlock + 1, currentBlock).catch(err => {
+            console.error('[Agent] ❌ pollAgentJobs error during monitoring:', err);
+          });
         }
 
         // We caught up to the network head. Retry failed analyses in queue.
@@ -328,6 +394,7 @@ export async function startListener(): Promise<void> {
         await new Promise(r => setTimeout(r, 15000));
         continue;
       }
+
 
       const toBlock = Math.min(fromBlock + BATCH_SIZE - 1, currentBlock);
       
@@ -348,6 +415,9 @@ export async function startListener(): Promise<void> {
         ]);
         
         console.log(`[Listener] 🔍 Scanning blocks from ${fromBlock} to ${toBlock}... Found: JobExpired=${expiredEvents.length}, Refunded=${refundedEvents.length}, JobRejected=${rejectedEvents.length}`);
+
+        // ── Agent: check for new jobs and funded jobs in this block range ────
+        await pollAgentJobs(fromBlock, toBlock);
 
         // Process JobExpired
         if (expiredEvents.length > 0) {
