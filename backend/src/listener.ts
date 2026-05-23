@@ -493,7 +493,7 @@ export async function startListener(): Promise<void> {
         }
         
         // Move to next batch only if successful
-        fromBlock += BATCH_SIZE;
+        fromBlock = toBlock + 1;
 
         // Persist scanning progress in database
         await saveLastScannedBlock(toBlock);
