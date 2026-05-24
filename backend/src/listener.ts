@@ -371,8 +371,17 @@ export async function startListener(): Promise<void> {
 
     console.log(`[Listener] 📜 Initiating scan from block ${fromBlock} (Chunks of ${BATCH_SIZE})...`);
 
+    let lastSavedBlockInDb = dbLastScanned;
+
     while (true) {
-      const currentBlock = await provider.getBlockNumber().catch(() => fromBlock);
+      let currentBlock;
+      try {
+        currentBlock = await provider.getBlockNumber();
+      } catch (err) {
+        console.warn(`[Listener] ⚠️ Failed to get current block from RPC. Retrying in 5s...`);
+        await new Promise(r => setTimeout(r, 5000));
+        continue;
+      }
       
       telemetry.currentNetworkBlock = currentBlock;
       
@@ -382,7 +391,10 @@ export async function startListener(): Promise<void> {
         telemetry.scanProgressPct = 100;
         
         // Save current block height to database so we start here on reboot
-        await saveLastScannedBlock(currentBlock);
+        if (currentBlock > lastSavedBlockInDb) {
+          await saveLastScannedBlock(currentBlock);
+          lastSavedBlockInDb = currentBlock;
+        }
 
         if (currentBlock > prevBlock) {
           console.log(`[Listener] 💓 Active & Monitoring. Block height increased to ${currentBlock}`);
@@ -397,8 +409,8 @@ export async function startListener(): Promise<void> {
           console.error('[Listener] ❌ Error in retryFailedAnalyses:', retryErr);
         });
 
-        // We caught up to the network head. Wait 15 seconds before polling again.
-        await new Promise(r => setTimeout(r, 15000));
+        // We caught up to the network head. Wait 60 seconds before polling again to save DB quotas.
+        await new Promise(r => setTimeout(r, 60000));
         continue;
       }
 
@@ -496,7 +508,10 @@ export async function startListener(): Promise<void> {
         fromBlock = toBlock + 1;
 
         // Persist scanning progress in database
-        await saveLastScannedBlock(toBlock);
+        if (toBlock > lastSavedBlockInDb) {
+          await saveLastScannedBlock(toBlock);
+          lastSavedBlockInDb = toBlock;
+        }
 
         // Small delay between successful chunks to be polite to the RPC
         await new Promise(r => setTimeout(r, 800));
