@@ -304,7 +304,7 @@ export default function App() {
         </Section>
 
         <Section index="03" label="Live Failure Archive" id="database-feed" py={56}>
-          <div style={{ height: 520 }}>
+          <div style={{ height: 840 }}>
             <LiveTerminalFeed jobs={stats.recentJobs} />
           </div>
         </Section>

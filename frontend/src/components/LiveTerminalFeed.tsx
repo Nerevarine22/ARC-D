@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { FailedJob } from '../hooks/useStats';
 
 interface Props { jobs: FailedJob[]; }
@@ -42,10 +42,18 @@ function PainDots({ score }: { score: number }) {
 }
 
 // Archive-style column layout
-const COLS = '48px 80px 96px 64px 100px 1fr';
+const COLS = '32px 60px 80px 80px 50px 100px 1fr';
 
 export default function LiveTerminalFeed({ jobs }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopy = (id: string | undefined) => {
+    if (!id) return;
+    navigator.clipboard.writeText(id);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 1500);
+  };
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
@@ -89,7 +97,7 @@ export default function LiveTerminalFeed({ jobs }: Props) {
           borderBottom: '1px solid var(--border)',
         }}
       >
-        {['#', 'WHEN', 'CAUSE', 'USDC', 'CATEGORY', 'SUMMARY & SKILLS'].map((h) => (
+        {['#', 'WHEN', 'JOB ID', 'CAUSE', 'USDC', 'CATEGORY', 'SUMMARY & SKILLS'].map((h) => (
           <span key={h} className="sys-label">{h}</span>
         ))}
       </div>
@@ -136,6 +144,22 @@ export default function LiveTerminalFeed({ jobs }: Props) {
                 {timeAgo(job.processedAt)}
               </span>
 
+              {/* Job ID */}
+              <button
+                onClick={() => handleCopy(job.jobId)}
+                style={{
+                  background: 'none', border: 'none', padding: 0, margin: 0, cursor: 'pointer', textAlign: 'left',
+                  fontSize: 10, paddingTop: 2, fontFamily: 'var(--font-mono)',
+                  color: copiedId === job.jobId ? 'var(--green)' : 'var(--ink-3)',
+                  transition: 'color 0.15s',
+                }}
+                onMouseEnter={(e) => { if (copiedId !== job.jobId) e.currentTarget.style.color = 'var(--ink)'; }}
+                onMouseLeave={(e) => { if (copiedId !== job.jobId) e.currentTarget.style.color = 'var(--ink-3)'; }}
+                title="Click to copy Job ID"
+              >
+                {copiedId === job.jobId ? 'COPIED' : job.jobId ? `${job.jobId.slice(0, 6)}…` : '—'}
+              </button>
+
               {/* Cause */}
               <span
                 className="mono-val"
@@ -171,7 +195,7 @@ export default function LiveTerminalFeed({ jobs }: Props) {
                   style={{
                     fontSize: 12, color: 'var(--ink-2)', lineHeight: 1.5,
                     display: '-webkit-box',
-                    WebkitLineClamp: 1,
+                    WebkitLineClamp: 2,
                     WebkitBoxOrient: 'vertical',
                     overflow: 'hidden',
                     marginBottom: 5,
