@@ -6,17 +6,83 @@ import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import type { Stats, FailedJob } from '../hooks/useStats';
 
-type ButtonState = 'disconnected' | 'connecting' | 'connected' | 'paying' | 'generating' | 'success' | 'error';
+type ButtonState =
+  | 'disconnected' | 'connecting' | 'connected'
+  | 'paying' | 'generating' | 'success' | 'error';
 
-interface Props {
-  stats: Stats;
-}
+interface Props { stats: Stats; }
 
 const ERC20_ABI = [
-  "function transfer(address to, uint256 value) public returns (bool)"
+  'function transfer(address to, uint256 value) public returns (bool)',
 ];
 
-export default function Web3ReportButton({ stats }: Props) {
+/* ── Editorial button base ───────────────────────────────────── */
+const BTN_BASE: React.CSSProperties = {
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: 7,
+  height: 28,
+  padding: '0 12px',
+  border: '1px solid var(--border)',
+  borderRadius: 2,
+  background: 'transparent',
+  fontFamily: 'var(--font-mono)',
+  fontSize: 10,
+  fontWeight: 500,
+  letterSpacing: '0.08em',
+  textTransform: 'uppercase' as const,
+  color: 'var(--ink-3)',
+  cursor: 'pointer',
+  transition: 'background 0.12s, border-color 0.12s, color 0.12s',
+  whiteSpace: 'nowrap' as const,
+  userSelect: 'none' as const,
+  outline: 'none',
+};
+
+/* ── Spinner ─────────────────────────────────────────────────── */
+function Spinner() {
+  return (
+    <svg
+      width="10" height="10"
+      viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"
+      style={{ animation: 'spin 0.7s linear infinite', flexShrink: 0 }}
+    >
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      <circle cx="12" cy="12" r="10" strokeOpacity="0.25" />
+      <path d="M12 2a10 10 0 0 1 10 10" />
+    </svg>
+  );
+}
+
+/* ── Icon: download ──────────────────────────────────────────── */
+function DownloadIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      style={{ flexShrink: 0 }}
+    >
+      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+      <polyline points="7 10 12 15 17 10" />
+      <line x1="12" y1="15" x2="12" y2="3" />
+    </svg>
+  );
+}
+
+/* ── Icon: link/connect ──────────────────────────────────────── */
+function LinkIcon() {
+  return (
+    <svg width="10" height="10" viewBox="0 0 24 24" fill="none"
+      stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+      style={{ flexShrink: 0 }}
+    >
+      <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+      <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+    </svg>
+  );
+}
+
+export default function Web3ReportButton({ stats: _stats }: Props) {
+  const stats = _stats; // used inside generatePDFReport
   const [status, setStatus] = useState<ButtonState>('disconnected');
   const [account, setAccount] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -24,612 +90,327 @@ export default function Web3ReportButton({ stats }: Props) {
   const [hasStandardEthereum, setHasStandardEthereum] = useState(false);
   const providersRef = useRef<any[]>([]);
 
-  // Helper to safely discover and get the injected ethereum provider (handling EIP-6963 + timing + conflicts)
   const getEthereumProvider = () => {
     if (typeof window === 'undefined') return null;
-
-    const anyWindow = window as any;
-
-    // 1. Check EIP-6963 announced providers first (most reliable, avoids provider conflicts)
-    if (providersRef.current && providersRef.current.length > 0) {
-      // Prefer Rabby or MetaMask if they are among the announced providers
+    const w = window as any;
+    if (providersRef.current.length > 0) {
       const preferred = providersRef.current.find(
         (p: any) => p.info.name.toLowerCase().includes('rabby') || p.info.name.toLowerCase().includes('metamask')
       );
-      if (preferred) return preferred.provider;
-      return providersRef.current[0].provider;
+      return preferred ? preferred.provider : providersRef.current[0].provider;
     }
-
-    // 2. Direct wallet namespaces (extremely reliable when window.ethereum is hijacked)
-    if (anyWindow.rabby) {
-      return anyWindow.rabby;
+    if (w.rabby) return w.rabby;
+    if (w.phantom?.ethereum) return w.phantom.ethereum;
+    if (w.okxwallet) return w.okxwallet;
+    if (w.ethereum?.providers?.length) {
+      const preferred = w.ethereum.providers.find((p: any) => p.isMetaMask || p.isRabby);
+      return preferred ?? w.ethereum.providers[0];
     }
-    if (anyWindow.phantom?.ethereum) {
-      return anyWindow.phantom.ethereum;
-    }
-    if (anyWindow.okxwallet) {
-      return anyWindow.okxwallet;
-    }
-
-    // 3. If multiple providers are injected in window.ethereum (MetaMask + Rabby conflicts)
-    if (anyWindow.ethereum?.providers?.length) {
-      // Prefer MetaMask or Rabby if present, otherwise fallback to the first active provider
-      const preferred = anyWindow.ethereum.providers.find((p: any) => p.isMetaMask || p.isRabby);
-      if (preferred) return preferred;
-      return anyWindow.ethereum.providers[0];
-    }
-
-    // 4. Simple fallback to standard window.ethereum injection
-    return anyWindow.ethereum || null;
+    return w.ethereum || null;
   };
 
-  // 1. Listen for wallet events and check connection on mount
   useEffect(() => {
     let checkInterval: any = null;
     let isCleanedUp = false;
     let activeProvider: any = null;
 
-    if (typeof window !== 'undefined' && (window as any).ethereum) {
-      setHasStandardEthereum(true);
-    }
+    if (typeof window !== 'undefined' && (window as any).ethereum) setHasStandardEthereum(true);
 
     const handleAccounts = (accounts: string[]) => {
-      const isDisconnected = localStorage.getItem('wallet_disconnected') === 'true';
-      if (accounts.length > 0 && !isDisconnected) {
-        setAccount(accounts[0]);
-        setStatus('connected');
-        setErrorMsg(null);
+      const wasDisconnected = localStorage.getItem('wallet_disconnected') === 'true';
+      if (accounts.length > 0 && !wasDisconnected) {
+        setAccount(accounts[0]); setStatus('connected'); setErrorMsg(null);
       } else {
-        setAccount(null);
-        setStatus('disconnected');
+        setAccount(null); setStatus('disconnected');
       }
     };
 
     const initWalletListener = (provider: any) => {
       if (isCleanedUp || !provider) return;
-      
-      // If switching to a new/better provider, clean up listeners on the old one
-      if (activeProvider && activeProvider !== provider) {
-        if (activeProvider.removeListener) {
-          activeProvider.removeListener('accountsChanged', handleAccounts);
-        }
+      if (activeProvider && activeProvider !== provider && activeProvider.removeListener) {
+        activeProvider.removeListener('accountsChanged', handleAccounts);
       }
-      
       activeProvider = provider;
-
-      // Subscribe to changes safely
-      if (provider.on) {
-        provider.on('accountsChanged', handleAccounts);
-      }
-
-      // Check current connection
+      if (provider.on) provider.on('accountsChanged', handleAccounts);
       if (provider.request) {
         provider.request({ method: 'eth_accounts' })
           .then(handleAccounts)
-          .catch((err: any) => {
-            console.warn('[Web3] Failed to query accounts:', err);
-          });
+          .catch((e: any) => console.warn('[Web3]', e));
       }
     };
 
     const checkAndInit = () => {
-      const provider = getEthereumProvider();
-      if (provider) {
-        initWalletListener(provider);
-        return true;
-      }
+      const p = getEthereumProvider();
+      if (p) { initWalletListener(p); return true; }
       return false;
     };
 
-    // EIP-6963 event announcements listener
     const handleAnnounce = (event: any) => {
-      const detail = event.detail; // EIP6963ProviderDetail
-      if (!detail || !detail.provider) return;
-
-      // Avoid duplicates
-      if (providersRef.current.some(p => p.info.uuid === detail.info.uuid)) return;
-
-      const updated = [...providersRef.current, detail];
+      const d = event.detail;
+      if (!d?.provider) return;
+      if (providersRef.current.some(p => p.info.uuid === d.info.uuid)) return;
+      const updated = [...providersRef.current, d];
       providersRef.current = updated;
       setAnnouncedProviders(updated);
-
-      console.log(`[Web3] EIP-6963 Wallet announced: ${detail.info.name} (${detail.info.uuid})`);
-      
-      // Proactively try initialization once a provider announces itself
       checkAndInit();
     };
 
-    window.addEventListener("eip6963:announceProvider", handleAnnounce as any);
-    window.dispatchEvent(new Event("eip6963:requestProvider"));
-
-    // Standard MetaMask initialization listener
-    const onInitialized = () => {
-      checkAndInit();
-    };
-    window.addEventListener('ethereum#initialized', onInitialized);
-
-    // Try immediately on mount
+    window.addEventListener('eip6963:announceProvider', handleAnnounce as any);
+    window.dispatchEvent(new Event('eip6963:requestProvider'));
+    window.addEventListener('ethereum#initialized', checkAndInit);
     checkAndInit();
 
-    // Defensively poll every 150ms for 2 seconds (13 attempts) to handle late wallet injectors
     let attempts = 0;
     checkInterval = setInterval(() => {
       attempts++;
       checkAndInit();
-      if (attempts >= 13) {
-        clearInterval(checkInterval);
-      }
+      if (attempts >= 13) clearInterval(checkInterval);
     }, 150);
 
     return () => {
       isCleanedUp = true;
       if (checkInterval) clearInterval(checkInterval);
-      window.removeEventListener('ethereum#initialized', onInitialized);
+      window.removeEventListener('ethereum#initialized', checkAndInit);
       window.removeEventListener('eip6963:announceProvider', handleAnnounce as any);
-      if (activeProvider && activeProvider.removeListener) {
-        activeProvider.removeListener('accountsChanged', handleAccounts);
-      }
+      if (activeProvider?.removeListener) activeProvider.removeListener('accountsChanged', handleAccounts);
     };
   }, []);
 
-  // 2. Connect Wallet
   const connectWallet = async () => {
     const provider = getEthereumProvider();
-    if (!provider) {
-      setErrorMsg('No Web3 wallet found. Please install or enable MetaMask or Rabby.');
-      setStatus('error');
-      return;
-    }
+    if (!provider) { setErrorMsg('No Web3 wallet found. Install MetaMask or Rabby.'); setStatus('error'); return; }
     try {
-      setStatus('connecting');
-      setErrorMsg(null);
-      if (provider.request) {
-        const accounts = await provider.request({ method: 'eth_requestAccounts' });
-        if (accounts.length > 0) {
-          localStorage.removeItem('wallet_disconnected'); // Clear disconnection flag on manual connect
-          setAccount(accounts[0]);
-          setStatus('connected');
-        } else {
-          setStatus('disconnected');
-        }
-      } else {
-        throw new Error('Wallet provider does not support RPC requests.');
-      }
+      setStatus('connecting'); setErrorMsg(null);
+      const accounts = await provider.request({ method: 'eth_requestAccounts' });
+      if (accounts.length > 0) {
+        localStorage.removeItem('wallet_disconnected');
+        setAccount(accounts[0]); setStatus('connected');
+      } else { setStatus('disconnected'); }
     } catch (err: any) {
-      console.error('Wallet connection error:', err);
-      setErrorMsg(err.message || 'Connection rejected.');
-      setStatus('error');
+      setErrorMsg(err.message || 'Connection rejected.'); setStatus('error');
     }
   };
 
-  // 2.5. Disconnect Wallet (Emulated UI Disconnect)
   const disconnectWallet = () => {
     localStorage.setItem('wallet_disconnected', 'true');
-    setAccount(null);
-    setStatus('disconnected');
-    setErrorMsg(null);
+    setAccount(null); setStatus('disconnected'); setErrorMsg(null);
   };
 
-  // 3. Helper to generate Premium PDF Intelligence Report
   const generatePDFReport = (jobs: FailedJob[], txnHash: string) => {
-    const doc = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4'
-    });
-
-    const drawBackground = () => {
-      doc.setFillColor(11, 15, 25); // #0B0F19 deep slate
-      doc.rect(0, 0, 210, 297, 'F');
+    const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
+    const drawBg = () => { doc.setFillColor(11, 15, 25); doc.rect(0, 0, 210, 297, 'F'); };
+    const drawHeader = (page: number, tx: string) => {
+      doc.setFont('courier', 'bold'); doc.setFontSize(8); doc.setTextColor(0, 255, 204);
+      doc.text('ARC MARKET WATCHDOG // SYSTEM INTELLIGENCE REPORT', 15, 12);
+      doc.setFont('courier', 'normal'); doc.setFontSize(7); doc.setTextColor(143, 156, 174);
+      doc.text(`${new Date().toISOString().slice(0, 19)} | LIC: ARC-WD-${tx.slice(2, 10).toUpperCase()} | PAGE ${page}`, 195, 12, { align: 'right' });
+      doc.setDrawColor(0, 255, 204); doc.setLineWidth(0.2); doc.line(15, 15, 195, 15);
     };
-
-    const drawHeader = (pageNumber: number, tx: string) => {
-      // Header Text
-      doc.setFont('courier', 'bold');
-      doc.setFontSize(8);
-      doc.setTextColor(0, 255, 204); // Neon Green
-      doc.text("ARC MARKET WATCHDOG // SYSTEM INTELLIGENCE REPORT", 15, 12);
-
-      doc.setFont('courier', 'normal');
-      doc.setFontSize(7);
-      doc.setTextColor(143, 156, 174); // Muted Grey
-      const dateStr = new Date().toISOString().replace('T', ' ').slice(0, 19);
-      const licStr = `LIC: ARC-WD-${tx.slice(2, 10).toUpperCase()}`;
-      doc.text(`${dateStr} | ${licStr} | PAGE ${pageNumber}`, 195, 12, { align: 'right' });
-
-      // Neon Green divider line
-      doc.setDrawColor(0, 255, 204);
-      doc.setLineWidth(0.2);
-      doc.line(15, 15, 195, 15);
-    };
-
     const drawFooter = () => {
-      // Divider line
-      doc.setDrawColor(31, 38, 51);
-      doc.setLineWidth(0.2);
-      doc.line(15, 282, 195, 282);
-
-      doc.setFont('courier', 'normal');
-      doc.setFontSize(7);
-      doc.setTextColor(143, 156, 174);
-      doc.text("CONFIDENTIAL // FOR INTERNAL AGENT AUDIT ONLY", 15, 287);
-      doc.text("POWERED BY NEREVARIN99 & GEMINI AI", 195, 287, { align: 'right' });
+      doc.setDrawColor(31, 38, 51); doc.setLineWidth(0.2); doc.line(15, 282, 195, 282);
+      doc.setFont('courier', 'normal'); doc.setFontSize(7); doc.setTextColor(143, 156, 174);
+      doc.text('CONFIDENTIAL // FOR INTERNAL AGENT AUDIT ONLY', 15, 287);
+      doc.text('POWERED BY NEREVARIN99 & GEMINI AI', 195, 287, { align: 'right' });
     };
 
-    // ─── PAGE 1: DASHBOARD SUMMARY ───────────────────────────────────────────
-    drawBackground();
-    drawHeader(1, txnHash);
-    drawFooter();
-
-    // 1. Report Title
-    doc.setFont('courier', 'bold');
-    doc.setFontSize(14);
-    doc.setTextColor(255, 255, 255);
-    doc.text("ARC NETWORK AGENT DEMAND & SKILL-GAP INTELLIGENCE", 15, 26);
-    
-    doc.setFont('courier', 'normal');
-    doc.setFontSize(9);
-    doc.setTextColor(143, 156, 174);
-    doc.text("Real-time aggregate analytics of failed agent execution blocks on-chain", 15, 32);
-
-    // 2. Executive Summary Cards (Section 1)
-    doc.setFont('courier', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(0, 255, 204);
-    doc.text("1.0 // SYSTEM MACRO METRICS", 15, 46);
-
-    const drawCard = (x: number, y: number, w: number, h: number, title: string, value: string, valColor: [number, number, number]) => {
-      doc.setFillColor(22, 27, 38); // Midnight Grey
-      doc.setDrawColor(31, 38, 51); // Border Grey
-      doc.setLineWidth(0.3);
-      doc.rect(x, y, w, h, 'FD');
-
-      // Title
-      doc.setFont('courier', 'normal');
-      doc.setFontSize(7);
-      doc.setTextColor(143, 156, 174);
-      doc.text(title, x + 4, y + 5);
-
-      // Value
-      doc.setFont('courier', 'bold');
-      doc.setFontSize(8.5);
-      doc.setTextColor(valColor[0], valColor[1], valColor[2]);
-      doc.text(value, x + 4, y + 12);
-    };
-
-    // 3 Cards across the screen (total width = 180mm)
-    const formatLost = `$${stats.totalUsdcLost.toLocaleString('en-US', { minimumFractionDigits: 2 })} USDC`;
-    drawCard(15, 50, 56, 17, "TOTAL USDC LEFT ON TABLE", formatLost, [255, 255, 255]);
-    drawCard(77, 50, 56, 17, "ANALYZED EVENT COUNT", `${stats.totalJobs} FAILED JOBS`, [0, 255, 204]);
-    drawCard(139, 50, 56, 17, "MARKET EFFICIENCY STATUS", "CRITICAL STATUS [RED]", [255, 51, 102]);
-
-    // 3. Category Distribution (Section 2)
-    doc.setFont('courier', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(0, 255, 204);
-    doc.text("2.0 // AGENT FAILURE DISTRIBUTION BY CATEGORY", 15, 79);
-
-    const categories = stats.byCategory || {};
-    const totalCatSum = Object.values(categories).reduce((a, b) => a + b, 0) || 1;
-
-    let catY = 85;
-    Object.entries(categories).forEach(([category, count]) => {
-      const pct = Math.round((count / totalCatSum) * 100);
-      const filledBlocks = Math.round(pct / 10);
-      const emptyBlocks = 10 - filledBlocks;
-      const barStr = `[${'█'.repeat(filledBlocks)}${'░'.repeat(emptyBlocks)}]`;
-
-      doc.setFont('courier', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(255, 255, 255);
-      doc.text(category.padEnd(16), 15, catY);
-      
-      doc.setTextColor(0, 255, 204);
-      doc.text(barStr, 50, catY);
-
-      doc.setTextColor(143, 156, 174);
-      doc.text(`${pct}% (${count} events)`, 90, catY);
-
-      catY += 6.5;
-    });
-
-    // 4. Top Skill Gaps (Section 3)
-    doc.setFont('courier', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(0, 255, 204);
-    doc.text("3.0 // DETECTED AGENT SKILL GAP RANKINGS (ALPHA INTEL)", 15, 126);
-
-    const top5Skills = stats.topSkills.slice(0, 5);
-    let skillY = 132;
-    
-    if (top5Skills.length === 0) {
-      doc.setFont('courier', 'normal');
-      doc.setFontSize(8);
-      doc.setTextColor(143, 156, 174);
-      doc.text("No skills gap recorded yet. All systems nominal.", 15, skillY);
-    } else {
-      top5Skills.forEach((skillItem, index) => {
-        doc.setFont('courier', 'bold');
-        doc.setFontSize(8);
-        doc.setTextColor(255, 102, 0); // Neon Orange
-        doc.text(`${index + 1}. ${skillItem.skill}`, 15, skillY);
-
-        doc.setFont('courier', 'normal');
-        doc.setTextColor(143, 156, 174);
-        doc.text(`— blocked ${skillItem.count} transactions`, 125, skillY);
-
-        skillY += 6.5;
-      });
-    }
-
-    // 5. System Disclosure Warning Box
-    const disclosureBoxY = 176;
-    doc.setFillColor(22, 27, 38);
-    doc.setDrawColor(255, 102, 0); // Warning orange border
-    doc.setLineWidth(0.3);
-    doc.rect(15, disclosureBoxY, 180, 25, 'FD');
-
-    doc.setFont('courier', 'bold');
-    doc.setFontSize(8);
-    doc.setTextColor(255, 102, 0);
-    doc.text("SYSTEM DISCLOSURE & ANALYSIS WARNING PROTOCOL:", 19, disclosureBoxY + 6);
-
-    doc.setFont('courier', 'normal');
-    doc.setFontSize(7.5);
-    doc.setTextColor(255, 255, 255);
-    const disclosureText = "This intelligence report aggregates failed agent execution blocks on the ARC Testnet registry. The missing capabilities list represents absolute developer bottlenecks. Address these system gaps to capture unfulfilled blockchain bounties.";
-    doc.text(disclosureText, 19, disclosureBoxY + 12, { maxWidth: 172 });
-
-    // Seal of Authenticity
-    doc.setFont('courier', 'bold');
-    doc.setFontSize(9);
-    doc.setTextColor(0, 255, 204);
-    doc.text("// ARCHIVE SECURE ACCESS VERIFIED // AUTOMATED BLOCKCHAIN EXPORT //", 15, 222);
-
-    // ─── PAGE 2+: GRANULAR DATA LOGS TABLE ──────────────────────────────────
-    doc.addPage();
-    
-    const tableRows = jobs.map(job => [
-      job.jobId || '',
-      job.analysis?.category || 'Unknown',
-      `$${(job.bountyAmount || 0).toFixed(2)} USDC`,
-      job.reasonCode === 1 ? 'Cancelled' : job.reasonCode === 2 ? 'Expired' : job.reasonCode === 3 ? 'Rejected' : 'Unknown',
-      new Date(job.processedAt).toISOString().replace('T', ' ').slice(0, 19)
-    ]);
+    drawBg(); drawHeader(1, txnHash); drawFooter();
+    doc.setFont('courier', 'bold'); doc.setFontSize(14); doc.setTextColor(255, 255, 255);
+    doc.text('ARC NETWORK AGENT DEMAND & SKILL-GAP INTELLIGENCE', 15, 26);
 
     autoTable(doc, {
-      startY: 20,
+      startY: 40,
       head: [['Job ID', 'Category', 'Bounty USDC', 'Status', 'Timestamp']],
-      body: tableRows,
+      body: jobs.map(job => [
+        job.jobId || '',
+        job.analysis?.category || 'Unknown',
+        `$${(job.bountyAmount || 0).toFixed(2)} USDC`,
+        job.reasonCode === 1 ? 'Cancelled' : job.reasonCode === 2 ? 'Expired' : 'Rejected',
+        new Date(job.processedAt).toISOString().replace('T', ' ').slice(0, 19),
+      ]),
       theme: 'grid',
-      styles: {
-        font: 'courier',
-        fontSize: 7.5,
-        textColor: [255, 255, 255],
-        fillColor: [11, 15, 25],
-        lineColor: [31, 38, 51],
-        lineWidth: 0.1
-      },
-      headStyles: {
-        fillColor: [22, 27, 38],
-        textColor: [0, 255, 204],
-        fontStyle: 'bold',
-        lineColor: [31, 38, 51],
-        lineWidth: 0.2
-      },
-      columnStyles: {
-        0: { cellWidth: 15 },
-        1: { cellWidth: 32 },
-        2: { cellWidth: 28, halign: 'right' },
-        3: { cellWidth: 22, halign: 'center' },
-        4: { cellWidth: 83 }
-      },
-      didParseCell: (data) => {
-        // Highlight Bounty Column green
-        if (data.column.index === 2 && data.section === 'body') {
-          data.cell.styles.textColor = [0, 255, 204];
-        }
-        // Highlight Status values
-        if (data.column.index === 3 && data.section === 'body') {
-          const text = data.cell.text[0];
-          if (text === 'Expired') {
-            data.cell.styles.textColor = [255, 102, 0];
-          } else if (text === 'Cancelled') {
-            data.cell.styles.textColor = [255, 51, 102];
-          }
-        }
-      },
-      willDrawPage: () => {
-        // Redraw dark background and paginated headers/footers
-        drawBackground();
-        const globalPage = doc.getNumberOfPages();
-        drawHeader(globalPage, txnHash);
-        drawFooter();
-      },
-      margin: { top: 20, bottom: 20 }
+      styles: { font: 'courier', fontSize: 7.5, textColor: [255, 255, 255], fillColor: [11, 15, 25], lineColor: [31, 38, 51], lineWidth: 0.1 },
+      headStyles: { fillColor: [22, 27, 38], textColor: [0, 255, 204], fontStyle: 'bold' },
+      willDrawPage: () => { drawBg(); drawHeader(doc.getNumberOfPages(), txnHash); drawFooter(); },
+      margin: { top: 20, bottom: 20 },
     });
 
-    // Download PDF file
     doc.save('ARC_Market_Intelligence_Report.pdf');
   };
 
-  // 4. Process USDC Payment and trigger download
   const triggerPaymentAndDownload = async () => {
     const provider = getEthereumProvider();
-    if (!provider) {
-      setErrorMsg('No wallet connected.');
-      setStatus('error');
-      return;
-    }
+    if (!provider) { setErrorMsg('No wallet connected.'); setStatus('error'); return; }
     try {
-      setStatus('paying');
-      setErrorMsg(null);
-
-      const usdcAddress = import.meta.env.VITE_USDC_ADDRESS || "0x3600000000000000000000000000000000000000";
-      const treasuryAddress = import.meta.env.VITE_TREASURY_ADDRESS || "0x43675dd92a75e03c6da7cffc6d6960a5d0096abd";
-
-      if (!usdcAddress || !treasuryAddress) {
-        throw new Error('USDC Address or Treasury Address not configured.');
-      }
-
+      setStatus('paying'); setErrorMsg(null);
+      const usdcAddress   = import.meta.env.VITE_USDC_ADDRESS     || '0x3600000000000000000000000000000000000000';
+      const treasuryAddress = import.meta.env.VITE_TREASURY_ADDRESS || '0x43675dd92a75e03c6da7cffc6d6960a5d0096abd';
       const browserProvider = new ethers.BrowserProvider(provider);
       const signer = await browserProvider.getSigner();
-
-      // Instantiate USDC ERC-20 contract
       const usdcContract = new ethers.Contract(usdcAddress, ERC20_ABI, signer);
-
-      // 5 USDC = 5,000,000 units (6 decimals)
-      const amount = 5_000_000n;
-
-      console.log(`[Web3] Transferring 5 USDC to ${treasuryAddress}`);
-      const tx = await usdcContract.transfer(treasuryAddress, amount);
-      
-      console.log('[Web3] TX Sent:', tx.hash);
-      
-      // Wait for 1 confirmation
+      const tx = await usdcContract.transfer(treasuryAddress, 5_000_000n);
       await tx.wait(1);
-      console.log('[Web3] TX Confirmed!');
-
-      // Retrieve all records from Firestore for full logs
       setStatus('generating');
-      const jobsCol = collection(db, 'jobs');
-      const q = query(jobsCol, orderBy('processedAt', 'desc'));
-      const querySnap = await getDocs(q);
-      
-      const jobs = querySnap.docs.map(doc => doc.data() as FailedJob);
-
-      // Generate Premium PDF intelligence report
-      generatePDFReport(jobs, tx.hash);
-
+      const snap = await getDocs(query(collection(db, 'jobs'), orderBy('processedAt', 'desc')));
+      generatePDFReport(snap.docs.map(d => d.data() as FailedJob), tx.hash);
       setStatus('success');
-      setTimeout(() => {
-        setStatus('connected');
-      }, 4000);
-
+      setTimeout(() => setStatus('connected'), 4000);
     } catch (err: any) {
-      console.error('Monetization flow failed:', err);
       let msg = err.reason || err.message || 'Transaction failed.';
-      if (err.code === 'ACTION_REJECTED' || err.message?.includes('user rejected')) {
-        msg = 'Transaction rejected by user.';
-      }
-      setErrorMsg(msg);
-      setStatus('error');
+      if (err.code === 'ACTION_REJECTED' || msg.includes('user rejected')) msg = 'Transaction rejected.';
+      setErrorMsg(msg); setStatus('error');
     }
   };
 
   const shortAddress = account ? `${account.slice(0, 6)}…${account.slice(-4)}` : '';
+  const isBusy = status === 'paying' || status === 'generating' || status === 'connecting';
+
+  /* ── Determine labels ─────────────────────────────── */
+  const connectLabel =
+    status === 'connecting' ? 'Connecting…'
+    : status === 'error'   ? 'Retry Connect'
+    : 'Connect Wallet';
+
+  const downloadLabel =
+    status === 'paying'     ? 'Processing…'
+    : status === 'generating' ? 'Generating…'
+    : status === 'success'    ? 'Downloaded ✓'
+    : status === 'error'      ? 'Retry'
+    : 'Download Report · 5 USDC';
 
   return (
-    <div className="relative flex items-center gap-2 font-mono">
-      {/* Account Info Badge */}
-      {account && status !== 'disconnected' && (
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] text-text-muted bg-bg-primary border border-border-subtle px-2 py-1 rounded-sm tracking-tight hidden sm:inline-block">
-            🟢 {shortAddress}
-          </span>
+    <div style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: 6 }}>
+
+      {/* ── Connected: address chip ── */}
+      {account && (
+        <>
+          <div
+            style={{
+              ...BTN_BASE,
+              cursor: 'default',
+              color: 'var(--ink-2)',
+              letterSpacing: '0.04em',
+              fontSize: 10,
+            }}
+          >
+            {shortAddress}
+          </div>
           <button
             onClick={disconnectWallet}
-            className="text-[9px] text-status-red/70 bg-status-red/10 border border-status-red/30 px-2 py-1 rounded-sm hover:bg-status-red hover:text-white transition-all cursor-pointer font-bold uppercase select-none active:scale-[0.97]"
-            title="Disconnect Wallet"
+            style={BTN_BASE}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-subtle)';
+              (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink)';
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+              (e.currentTarget as HTMLButtonElement).style.color = 'var(--ink-3)';
+            }}
           >
-            🔌 Disconnect
+            Disconnect
           </button>
-        </div>
+        </>
       )}
 
-      {/* Primary Action Button */}
+      {/* ── Connect / Download button ── */}
       <button
         onClick={!account ? connectWallet : triggerPaymentAndDownload}
-        disabled={status === 'paying' || status === 'generating' || status === 'connecting'}
-        className={`px-3 py-1.5 rounded-sm text-xs font-semibold uppercase tracking-wider transition-all duration-300 flex items-center gap-2 border select-none active:scale-[0.98] cursor-pointer
-          ${!account
-            ? (status === 'connecting'
-                ? 'bg-bg-tertiary border-border-default text-text-muted animate-pulse cursor-wait'
-                : status === 'error'
-                  ? 'bg-status-red/20 border-status-red text-status-red hover:bg-status-red hover:text-white'
-                  : 'bg-status-amber/10 border-status-amber/40 text-status-amber hover:bg-status-amber hover:text-black hover:shadow-[0_0_12px_rgba(245,158,11,0.4)]'
-              )
-            : (status === 'connected'
-                ? 'bg-status-green/10 border-status-green/40 text-status-green hover:bg-status-green hover:text-black hover:shadow-[0_0_12px_rgba(34,197,94,0.4)]'
-                : status === 'paying'
-                  ? 'bg-status-red/10 border-status-red/40 text-status-red cursor-wait'
-                  : status === 'generating'
-                    ? 'bg-status-green/10 border-status-green/40 text-status-green cursor-wait'
-                    : status === 'success'
-                      ? 'bg-status-green border-status-green text-black font-bold shadow-[0_0_12px_rgba(34,197,94,0.3)]'
-                      : status === 'error'
-                        ? 'bg-status-red/20 border-status-red text-status-red hover:bg-status-red hover:text-white'
-                        : 'bg-status-green/10 border-status-green/40 text-status-green hover:bg-status-green hover:text-black'
-              )
+        disabled={isBusy}
+        style={{
+          ...BTN_BASE,
+          borderColor: account && status !== 'error' ? 'var(--ink)' : 'var(--border)',
+          color: account && status !== 'error' ? 'var(--ink)' : 'var(--ink-3)',
+          opacity: isBusy ? 0.6 : 1,
+          cursor: isBusy ? 'wait' : 'pointer',
+        }}
+        onMouseEnter={(e) => {
+          if (!isBusy) {
+            (e.currentTarget as HTMLButtonElement).style.background = 'var(--ink)';
+            (e.currentTarget as HTMLButtonElement).style.color = 'var(--bg)';
+            (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--ink)';
           }
-        `}
+        }}
+        onMouseLeave={(e) => {
+          (e.currentTarget as HTMLButtonElement).style.background = 'transparent';
+          (e.currentTarget as HTMLButtonElement).style.color = account && status !== 'error' ? 'var(--ink)' : 'var(--ink-3)';
+          (e.currentTarget as HTMLButtonElement).style.borderColor = account && status !== 'error' ? 'var(--ink)' : 'var(--border)';
+        }}
       >
-        {/* State Icons */}
-        {!account && status !== 'connecting' && (
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />
-          </svg>
-        )}
-        
-        {!account && status === 'connecting' && (
-          <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-        )}
-
-        {account && (status === 'connected' || status === 'error') && (
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
-          </svg>
-        )}
-
-        {account && (status === 'paying' || status === 'generating') && (
-          <svg className="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
-          </svg>
-        )}
-
-        {account && status === 'success' && (
-          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
-        )}
-
-        {/* State Label */}
-        {!account && (status === 'connecting' ? 'Connecting...' : status === 'error' ? 'Connection Failed (Retry)' : 'Connect Wallet')}
-        {account && status === 'connected' && 'Download Intelligence PDF (5 USDC)'}
-        {account && status === 'paying' && 'Processing Payment in ARC Testnet... ⏳'}
-        {account && status === 'generating' && 'Generating Intelligence Report... 📊'}
-        {account && status === 'success' && 'Download Complete!'}
-        {account && status === 'error' && 'Payment Failed (Retry)'}
+        {isBusy
+          ? <Spinner />
+          : account
+            ? <DownloadIcon />
+            : <LinkIcon />
+        }
+        {account ? downloadLabel : connectLabel}
       </button>
 
-      {/* Wallet Discovery Indicator */}
+      {/* ── Wallet hint ── */}
       {!account && (
-        <div className="absolute right-0 top-full mt-1 text-[9px] text-text-muted tracking-tight whitespace-nowrap">
-          {announcedProviders.length > 0 ? (
-            <span>Detected: {announcedProviders.map(p => p.info.name).join(', ')}</span>
-          ) : (
-            hasStandardEthereum ? <span>Detected standard Web3 injection</span> : <span>No wallet detected</span>
-          )}
+        <div
+          style={{
+            position: 'absolute',
+            right: 0,
+            top: '100%',
+            marginTop: 4,
+            fontFamily: 'var(--font-mono)',
+            fontSize: 9,
+            color: 'var(--ink-4)',
+            letterSpacing: '0.08em',
+            whiteSpace: 'nowrap',
+          }}
+        >
+          {announcedProviders.length > 0
+            ? announcedProviders.map(p => p.info.name).join(', ')
+            : hasStandardEthereum ? 'Web3 detected' : 'No wallet detected'}
         </div>
       )}
 
-      {/* Floating Error Tooltip */}
+      {/* ── Error tooltip ── */}
       {errorMsg && (
-        <div className="absolute right-0 top-full mt-2.5 w-64 bg-status-red/95 border border-status-red text-white p-2.5 rounded-sm text-[10px] leading-relaxed shadow-xl z-50">
-          <div className="font-bold mb-0.5 flex items-center gap-1">
-            <span>⚠️ {account ? 'PAYMENT ERROR' : 'CONNECTION ERROR'}</span>
-            <button 
+        <div
+          style={{
+            position: 'absolute',
+            right: 0,
+            top: '100%',
+            marginTop: 8,
+            width: 260,
+            background: 'var(--bg-panel)',
+            border: '1px solid var(--border-strong)',
+            borderRadius: 2,
+            padding: '10px 12px',
+            boxShadow: '0 4px 16px rgba(0,0,0,0.08)',
+            zIndex: 100,
+          }}
+        >
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: 6,
+            }}
+          >
+            <span className="sys-label" style={{ color: 'var(--red)' }}>
+              {account ? 'PAYMENT ERROR' : 'CONNECTION ERROR'}
+            </span>
+            <button
               onClick={(e) => { e.stopPropagation(); setErrorMsg(null); }}
-              className="ml-auto hover:text-black font-bold uppercase cursor-pointer"
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontFamily: 'var(--font-mono)',
+                fontSize: 10,
+                color: 'var(--ink-4)',
+                padding: 0,
+              }}
             >
-              [X]
+              ✕
             </button>
           </div>
-          <p className="font-sans">{errorMsg}</p>
+          <p style={{ fontFamily: 'var(--font-display)', fontSize: 12, color: 'var(--ink-2)', lineHeight: 1.5 }}>
+            {errorMsg}
+          </p>
         </div>
       )}
     </div>

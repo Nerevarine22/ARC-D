@@ -7,33 +7,25 @@ interface Props {
 
 function formatUsdc(val: number): string {
   if (val >= 1_000_000) return `$${(val / 1_000_000).toFixed(2)}M`;
-  if (val >= 1_000) return `$${(val / 1_000).toFixed(2)}K`;
+  if (val >= 1_000)     return `$${(val / 1_000).toFixed(2)}K`;
   return `$${val.toFixed(2)}`;
 }
 
-function useAnimatedValue(target: number, duration = 600): number {
+function useAnimatedValue(target: number, duration = 800): number {
   const [display, setDisplay] = useState(target);
   const prevRef = useRef(target);
-  const rafRef = useRef<number>(0);
+  const rafRef  = useRef<number>(0);
 
   useEffect(() => {
     const start = prevRef.current;
-    const end = target;
-    const startTime = performance.now();
-
+    const t0 = performance.now();
     const animate = (now: number) => {
-      const elapsed = now - startTime;
-      const progress = Math.min(elapsed / duration, 1);
-      // Ease out cubic
-      const eased = 1 - Math.pow(1 - progress, 3);
-      setDisplay(start + (end - start) * eased);
-      if (progress < 1) {
-        rafRef.current = requestAnimationFrame(animate);
-      } else {
-        prevRef.current = end;
-      }
+      const p = Math.min((now - t0) / duration, 1);
+      const e = 1 - Math.pow(1 - p, 3);
+      setDisplay(start + (target - start) * e);
+      if (p < 1) rafRef.current = requestAnimationFrame(animate);
+      else prevRef.current = target;
     };
-
     cancelAnimationFrame(rafRef.current);
     rafRef.current = requestAnimationFrame(animate);
     return () => cancelAnimationFrame(rafRef.current);
@@ -43,57 +35,75 @@ function useAnimatedValue(target: number, duration = 600): number {
 }
 
 export default function LeftOnTableCounter({ value, isFlashing }: Props) {
-  const animatedValue = useAnimatedValue(value);
-  const formattedMain = formatUsdc(animatedValue);
+  const animated = useAnimatedValue(value);
 
   return (
-    <div className="card border-glow-green h-full flex flex-col">
-      <div className="card-header">
-        <div className="flex items-center gap-2">
-          <span className="live-dot" />
-          <span className="card-label">Total Left on Table</span>
-        </div>
-        <span className="text-xs font-mono text-text-muted">USDC · All Time</span>
+    <div
+      style={{
+        display: 'inline-flex',
+        flexDirection: 'column',
+        gap: 6,
+        paddingTop: 4,
+      }}
+    >
+      {/* Label */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          gap: 7,
+        }}
+      >
+        <span className="live-dot" />
+        <span className="sys-label">TOTAL LEFT ON TABLE · USDC · ALL TIME</span>
       </div>
 
-      <div className="flex-1 flex flex-col items-center justify-center px-6 py-8 gap-4">
-        {/* Main counter */}
-        <div
-          className={`transition-all duration-300 ${isFlashing ? 'scale-105' : 'scale-100'}`}
+      {/* Number */}
+      <div
+        style={{
+          fontFamily: 'var(--font-display)',
+          fontSize: 'clamp(64px, 9vw, 130px)',
+          fontWeight: 900,
+          letterSpacing: '-0.06em',
+          lineHeight: 1,
+          color: 'var(--ink)',
+          fontVariantNumeric: 'tabular-nums',
+          transform: isFlashing ? 'scale(1.008)' : 'scale(1)',
+          transition: 'transform 0.2s ease',
+        }}
+      >
+        {formatUsdc(animated)}
+      </div>
+
+      {/* Exact value + flash */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <span
+          className="mono-val"
+          style={{ fontSize: 11, color: 'var(--ink-4)' }}
         >
-          <div
-            className="font-mono font-bold tabular-nums leading-none text-gradient-green glow-green"
-            style={{ fontSize: 'clamp(3rem, 6vw, 5.5rem)' }}
-          >
-            {formattedMain}
-          </div>
-        </div>
-
-        {/* Exact value */}
-        <div className="font-mono text-sm text-text-secondary tabular-nums">
-          {value.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} USDC
-        </div>
-
-        {/* Sublabel */}
-        <div className="flex flex-col items-center gap-1 mt-2">
-          <div className="text-xs font-mono uppercase tracking-widest text-text-muted">
-            Autonomous agent bounties
-          </div>
-          <div className="text-xs font-mono uppercase tracking-widest text-text-muted">
-            gone unfulfilled
-          </div>
-        </div>
-
-        {/* Visual bar */}
-        <div className="w-full mt-4 h-px bg-gradient-to-r from-transparent via-status-green to-transparent opacity-30" />
-
-        {/* Flash new entry indicator */}
+          {value.toLocaleString('en-US', {
+            minimumFractionDigits: 2,
+            maximumFractionDigits: 2,
+          })}{' '}
+          USDC
+        </span>
         {isFlashing && (
-          <div className="flex items-center gap-2 animate-pulse">
-            <span className="text-xs font-mono text-status-green">▲ NEW FAILURE RECORDED</span>
-          </div>
+          <span
+            className="sys-label"
+            style={{ color: 'var(--red)', animation: 'fade-in 0.15s ease-out' }}
+          >
+            ↑ NEW FAILURE RECORDED
+          </span>
         )}
       </div>
+
+      {/* Descriptor */}
+      <p
+        className="body-text"
+        style={{ fontSize: 13, marginTop: 2 }}
+      >
+        Autonomous agent bounties gone unfulfilled on ARC Testnet
+      </p>
     </div>
   );
 }

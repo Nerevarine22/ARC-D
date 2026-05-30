@@ -1,0 +1,491 @@
+Design a premium real-time analytics dashboard for a product called UNMET.
+
+UNMET is not a generic SaaS dashboard.
+It is a real-time demand intelligence terminal for autonomous AI agents, designed to monitor unmet demand, failed jobs, missing capabilities, and money left unearned by AI agents in blockchain-based autonomous markets.
+
+The dashboard should feel like:
+
+Bloomberg Terminal
+Palantir Foundry
+Arkham Intelligence
+mission control center
+real-time market surveillance terminal
+
+This is not crypto neon casino UI and not generic SaaS dashboard.
+
+The emotional feeling should be:
+
+“We are intercepting valuable market intelligence directly from live autonomous agent economies.”
+
+BRAND
+
+Product name:
+
+UNMET
+
+Subtitle:
+
+Demand Intelligence for Autonomous Agents
+
+Brand meaning:
+
+unmet demand
+unmet capabilities
+missed revenue
+autonomous agent economic leakage
+live AI market telemetry
+
+The product should feel:
+
+premium
+technical
+institutional
+intelligent
+real-time
+high signal / low noise
+VISUAL STYLE DIRECTION
+
+Style:
+
+Terminal Intelligence + Premium Data Ops
+
+Aesthetic:
+
+dark, premium
+highly structured
+minimal glow
+sharp data hierarchy
+subtle live motion feeling
+real-time monitoring terminal
+
+Avoid:
+
+glassmorphism
+playful startup gradients
+huge shadows
+overuse of neon
+crypto casino visuals
+dribbble nonsense
+
+Target style ratio:
+
+70% Bloomberg Terminal
+20% Palantir
+10% cyber intelligence terminal
+COLOR SYSTEM
+
+Base colors:
+
+Void Black: #07090B
+Graphite: #101317
+Panel: #151A20
+Secondary Panel: #1A1F26
+Border: #252C34
+
+Text:
+
+Primary: #F3F6F8
+Secondary: #A1ACB8
+Muted: #6E7884
+
+Semantic colors:
+
+Money leakage / USDC: #B8FF3B (toxic lime)
+
+Critical failures: #FF5D5D
+
+Warning: #FFB84D
+
+Live system: #3DFF91
+
+Neutral analytics: #4DA6FF
+
+Use semantic colors sparingly.
+
+Dark interface should dominate.
+
+TYPOGRAPHY
+
+Display numbers:
+
+Space Grotesk
+
+Terminal labels:
+
+IBM Plex Mono
+
+UI text:
+
+Inter
+
+Typography hierarchy:
+
+Huge numeric telemetry
+Monospace technical labels
+clean UI labels
+compact dense data
+PAGE STRUCTURE
+
+Full screen command-center dashboard.
+
+Layout:
+
+HEADER
+STATUS STRIP
+MAIN HERO GRID
+LOWER LIVE DATA GRID
+FOOTER
+
+HEADER
+
+Height ~88px
+
+Left:
+
+three small terminal dots
+
+Logo:
+
+UNMET
+
+Subtitle:
+
+Demand Intelligence for Autonomous Agents
+
+Should feel like product terminal branding.
+
+Center:
+
+Three compact telemetry widgets:
+
+FAILED JOBS
+Total failed jobs count
+
+AVG MISSED BOUNTY
+Average missed USDC value
+
+TOP SKILL GAP
+Current highest missing capability
+
+Each metric should be compact telemetry capsules, not plain text.
+
+Right:
+
+Primary CTA button:
+
+GENERATE INTELLIGENCE REPORT
+
+Secondary network badge:
+
+ARC TESTNET ●
+
+badge should have subtle live glow
+
+STATUS STRIP
+
+Thin infrastructure ticker strip under header.
+
+Contains:
+
+NETWORK: ARC TESTNET
+
+REGISTRY: smart contract address
+
+PROCESSED JOBS
+
+CURRENT BLOCK
+
+LAST UPDATE
+
+SYSTEM STATUS: LIVE
+
+Visual behavior:
+
+subtle scan-line / infra monitoring feel
+
+very thin strip
+
+MAIN HERO SECTION
+
+Two-column grid:
+
+60% left
+40% right
+
+LEFT HERO PANEL (PRIMARY FOCAL POINT)
+
+This is the most important panel on the screen.
+
+Title:
+
+LEFT ON TABLE
+
+Huge live money counter:
+
+$4,284,930.23
+
+Label:
+
+USDC MISSED
+
+Sub metrics:
+
++12,420 in last 5 min
+
+FAILURE PRESSURE ↑ 14%
+
+Add sparkline trend under amount.
+
+Visual behavior:
+
+number roll animation
+subtle flash on update
+toxic lime glow only on amount
+pulse border when value changes
+
+Typography:
+
+very large
+
+80–120px number display
+
+This panel must dominate the page visually.
+
+RIGHT HERO PANEL
+
+Title:
+
+DEMAND SIGNALS
+
+Purpose:
+
+show missing capabilities and demand pressure.
+
+Top area:
+
+ranked horizontal bars:
+
+Smart Contract Audit
+Oracle Validation
+Cross-chain Routing
+Data Extraction
+Risk Assessment
+
+Bar chart with values.
+
+Bottom area:
+
+category pressure visualization
+
+Use either:
+
+radial chart OR heat matrix
+
+Categories:
+
+DeFi
+Security
+Analytics
+Execution
+Infrastructure
+
+Status labels:
+
+HIGH
+CRITICAL
+RISING
+MEDIUM
+LOW
+
+Add small signal badges:
+
+CRITICAL
+HIGH VALUE
+RISING
+
+LOWER GRID
+
+Split:
+
+70% left
+30% right
+
+LEFT LOWER PANEL
+
+Main component:
+
+LIVE EVENT TERMINAL
+
+This is a real-time terminal feed.
+
+Toolbar:
+
+LIVE FEED
+
+filter chips:
+
+ALL
+HIGH VALUE
+SECURITY
+DEFI
+ORACLE
+
+Pause button
+
+Feed rows should look like terminal logs.
+
+Example:
+
+14:35:22 FAILED_JOB #88231
+BOUNTY: 540 USDC
+CAPABILITY: Smart Contract Simulation
+VALUE LOSS REGISTERED
+
+Behavior:
+
+new rows pulse briefly
+scrollable
+severity colors
+hover detail state
+live streaming indicator
+blinking cursor somewhere in footer line
+
+Should feel like a real live intelligence stream.
+
+Background darker than cards.
+
+Subtle scan lines.
+
+RIGHT LOWER PANEL
+
+Title:
+
+INSIGHTS
+
+Stack of compact signal cards.
+
+Cards:
+
+BIGGEST MISSED BOUNTY
+
+FASTEST RISING GAP
+
+AGENT READINESS SCORE
+
+PREDICTED LEAKAGE NEXT HOUR
+
+UNUSUAL DEMAND SPIKE
+
+OPPORTUNITY WINDOW
+
+Cards should contain:
+
+compact number
+small sparkline
+trend signal
+severity labels
+
+One card should use radial gauge.
+
+FOOTER
+
+Thin terminal footer strip.
+
+Left:
+
+UNMET v2.1
+ERC-8183
+ARC TESTNET
+[ ADMIN ]
+
+Right:
+
+Powered by Nerevarin99
+Unmet Demand Analytics
+
+Minimal.
+
+Low contrast.
+
+MOTION SYSTEM
+
+Subtle live motion only.
+
+Allowed:
+
+blinking cursor
+number roll animation
+pulse update flash
+chart refresh
+row highlight on new event
+ticker movement
+scan strip
+border pulse on critical state
+
+Avoid:
+
+spinning loaders everywhere
+giant glows
+over-animated crypto UI
+flashy transitions
+UX PRINCIPLES
+
+This is a live intelligence terminal, not a marketing dashboard.
+
+Design principles:
+
+data hierarchy first
+strong focal point
+terminal realism
+premium density
+signal over noise
+operational feel
+compact spacing
+institutional aesthetics
+RESPONSIVE
+
+Desktop-first.
+
+Tablet:
+
+stack hero sections
+
+Mobile:
+
+hide telemetry center metrics in header
+
+terminal becomes simplified stream
+
+cards stack vertically
+
+DESIGN REFERENCES
+
+Reference emotional direction:
+
+Bloomberg Terminal
+Palantir Foundry
+Arkham Intelligence
+Trading infra dashboards
+Mission control UI
+Cyber intelligence systems
+
+FINAL DESIGN GOAL
+
+The interface should make the user feel:
+
+“We are watching economic opportunities fail in real time, measuring where autonomous agents are losing money, and exposing unmet demand across AI markets.”
+
+The dashboard must feel:
+
+intelligent
+premium
+technical
+operational
+high-value
+institutional
+real-time
+signal-driven
+
+NOT generic SaaS.
+NOT crypto trading clone.
+NOT startup dashboard.

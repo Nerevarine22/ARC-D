@@ -1,11 +1,6 @@
 import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  Cell,
+  BarChart, Bar, XAxis, YAxis, Tooltip,
+  ResponsiveContainer, Cell,
 } from 'recharts';
 import type { SkillStat } from '../hooks/useStats';
 
@@ -14,124 +9,126 @@ interface Props {
   byCategory: Record<string, number>;
 }
 
-const CATEGORY_COLORS: Record<string, string> = {
-  DeFi: '#7c3aed',
-  Security: '#dc2626',
-  'Data-Parsing': '#0891b2',
-  Infrastructure: '#d97706',
-};
-
-const SKILL_COLOR_MAP: Record<string, string> = {};
-const COLORS = ['#7c3aed', '#0891b2', '#dc2626', '#d97706', '#16a34a', '#db2777', '#2563eb', '#9333ea'];
-
-function getSkillColor(skill: string): string {
-  if (!SKILL_COLOR_MAP[skill]) {
-    const idx = Object.keys(SKILL_COLOR_MAP).length % COLORS.length;
-    SKILL_COLOR_MAP[skill] = COLORS[idx];
-  }
-  return SKILL_COLOR_MAP[skill];
+// Monochrome-first palette — dark shades, no neon
+const COLORS = [
+  '#111111', '#444444', '#222222', '#555555',
+  '#333333', '#666666', '#1a1a1a', '#4a4a4a',
+];
+const COLOR_MAP: Record<string, string> = {};
+function getColor(skill: string, idx: number) {
+  if (!COLOR_MAP[skill]) COLOR_MAP[skill] = COLORS[idx % COLORS.length];
+  return COLOR_MAP[skill];
+}
+function trimLabel(s: string) {
+  return s.length > 34 ? s.slice(0, 31) + '…' : s;
 }
 
-// Truncate excessively long skill names for the axis labels
-function formatSkillLabel(skill: string): string {
-  if (skill.length > 28) {
-    return skill.slice(0, 25) + '...';
-  }
-  return skill;
-}
-
-// Custom tooltip
-function CustomTooltip({ active, payload }: any) {
+function Tip({ active, payload }: any) {
   if (!active || !payload?.length) return null;
-  const item = payload[0];
+  const { skill, count } = payload[0].payload;
   return (
-    <div className="bg-bg-tertiary border border-border-default rounded-sm px-3 py-2 font-mono text-xs shadow-xl">
-      <div className="text-text-primary font-medium">{item.payload.skill}</div>
-      <div className="text-status-green mt-0.5">{item.value} jobs failed</div>
+    <div
+      style={{
+        background: '#fff',
+        border: '1px solid var(--border)',
+        borderRadius: 2,
+        padding: '8px 12px',
+        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+      }}
+    >
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, marginBottom: 3 }}>
+        {skill}
+      </div>
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--red)' }}>
+        {count} failed jobs
+      </div>
     </div>
   );
 }
 
+function CountLabel(props: any) {
+  const { x, y, width, height, value } = props;
+  if (!width || width <= 0) return null;
+  return (
+    <text
+      x={x + width + 8} y={y + height / 2 + 1}
+      textAnchor="start" dominantBaseline="middle"
+      fontSize={10} fontFamily="IBM Plex Mono, monospace"
+      fill="var(--ink-4)"
+    >
+      {value}
+    </text>
+  );
+}
+
 export default function TopMissingCapabilities({ skills, byCategory }: Props) {
-  const chartData = skills.slice(0, 12);
-  const totalJobs = Object.values(byCategory).reduce((s, v) => s + v, 0);
+  const data = skills.slice(0, 15);
 
   return (
-    <div className="card h-full flex flex-col">
-      <div className="card-header">
-        <span className="card-label">Top Missing Capabilities</span>
-        <span className="text-xs font-mono text-text-muted">{skills.length} skills tracked</span>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* Sub-header: category legend */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 24,
+        }}
+      >
+        <span className="body-text" style={{ fontSize: 13 }}>
+          {skills.length} distinct capability gaps tracked
+        </span>
+        <div style={{ display: 'flex', gap: 20 }}>
+          {[
+            { label: 'DeFi',    key: 'DeFi' },
+            { label: 'Security',key: 'Security' },
+            { label: 'Data',    key: 'Data-Parsing' },
+            { label: 'Infra',   key: 'Infrastructure' },
+          ].map(({ label, key }) => {
+            const total = Object.values(byCategory).reduce((s, v) => s + v, 0) || 1;
+            const pct = (((byCategory[key] ?? 0) / total) * 100).toFixed(0);
+            return (
+              <div key={key} style={{ textAlign: 'right' }}>
+                <div className="sys-label">{label}</div>
+                <div
+                  className="mono-val"
+                  style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}
+                >
+                  {pct}%
+                </div>
+              </div>
+            );
+          })}
+        </div>
       </div>
 
-      {/* Category breakdown */}
-      <div className="grid grid-cols-4 gap-0 border-b border-border-subtle">
-        {['DeFi', 'Security', 'Data-Parsing', 'Infrastructure'].map((cat) => {
-          const count = byCategory[cat] ?? 0;
-          const pct = totalJobs > 0 ? ((count / totalJobs) * 100).toFixed(0) : '0';
-          return (
-            <div
-              key={cat}
-              className="flex flex-col items-center py-3 border-r border-border-subtle last:border-r-0"
-            >
-              <div
-                className="text-xs font-mono font-semibold tabular-nums"
-                style={{ color: CATEGORY_COLORS[cat] }}
-              >
-                {pct}%
-              </div>
-              <div className="text-xs font-mono text-text-muted mt-0.5 truncate px-1">
-                {cat === 'Data-Parsing' ? 'Data' : cat}
-              </div>
-              <div
-                className="w-full h-0.5 mt-2 mx-4"
-                style={{
-                  background: `linear-gradient(90deg, ${CATEGORY_COLORS[cat]} ${pct}%, transparent ${pct}%)`,
-                }}
-              />
-            </div>
-          );
-        })}
-      </div>
-
-      {/* Bar chart */}
-      <div className="flex-1 px-2 py-3 min-h-0">
-        {chartData.length === 0 ? (
-          <div className="h-full flex items-center justify-center">
-            <span className="font-mono text-xs text-text-muted animate-pulse">
-              Awaiting data from blockchain...
-            </span>
+      {/* Chart */}
+      <div style={{ flex: 1, minHeight: 0 }}>
+        {data.length === 0 ? (
+          <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <span className="sys-label">Awaiting data from blockchain…</span>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
-              data={chartData}
+              data={data}
               layout="vertical"
-              margin={{ top: 0, right: 20, left: 0, bottom: 0 }}
-              barSize={10}
+              margin={{ top: 0, right: 48, left: 0, bottom: 0 }}
+              barSize={9}
+              barCategoryGap="20%"
             >
-              <XAxis
-                type="number"
-                hide
-                domain={[0, (max: number) => Math.ceil(max * 1.15)]}
-              />
+              <XAxis type="number" hide domain={[0, (m: number) => Math.ceil(m * 1.2)]} />
               <YAxis
-                type="category"
-                dataKey="skill"
-                width={210}
-                interval={0}
-                tickFormatter={formatSkillLabel}
-                tick={{
-                  fill: '#8b9ab0',
-                  fontSize: 11,
-                  fontFamily: 'JetBrains Mono, monospace',
-                }}
-                tickLine={false}
-                axisLine={false}
+                type="category" dataKey="skill"
+                width={240} interval={0}
+                tickFormatter={trimLabel}
+                tick={{ fill: 'var(--ink-3)', fontSize: 11, fontFamily: 'IBM Plex Mono, monospace' }}
+                tickLine={false} axisLine={false}
               />
-              <Tooltip content={<CustomTooltip />} cursor={{ fill: 'rgba(255,255,255,0.03)' }} />
-              <Bar dataKey="count" radius={[0, 2, 2, 0]}>
-                {chartData.map((entry) => (
-                  <Cell key={entry.skill} fill={getSkillColor(entry.skill)} />
+              <Tooltip content={<Tip />} cursor={{ fill: 'rgba(0,0,0,0.025)' }} />
+              <Bar dataKey="count" radius={[0, 2, 2, 0]} label={<CountLabel />}>
+                {data.map((e, i) => (
+                  <Cell key={e.skill} fill={getColor(e.skill, i)} />
                 ))}
               </Bar>
             </BarChart>

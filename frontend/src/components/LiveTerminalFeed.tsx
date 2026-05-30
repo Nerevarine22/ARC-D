@@ -1,168 +1,209 @@
 import { useEffect, useRef } from 'react';
 import type { FailedJob } from '../hooks/useStats';
 
-interface Props {
-  jobs: FailedJob[];
+interface Props { jobs: FailedJob[]; }
+
+const CAT_COLOR: Record<string, string> = {
+  DeFi:           'var(--violet)',
+  Security:       'var(--red)',
+  'Data-Parsing': 'var(--blue)',
+  Infrastructure: 'var(--amber)',
+};
+
+const REASON: Record<number, string> = {
+  1: 'CANCELLED',
+  2: 'EXPIRED',
+  3: 'REJECTED',
+};
+
+function timeAgo(iso: string): string {
+  const s = Math.floor((Date.now() - new Date(iso).getTime()) / 1000);
+  if (s < 60)    return `${s}s ago`;
+  if (s < 3600)  return `${Math.floor(s / 60)}m ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
+  return `${Math.floor(s / 86400)}d ago`;
 }
 
-const CATEGORY_BADGE: Record<string, string> = {
-  DeFi: 'badge-defi',
-  Security: 'badge-security',
-  'Data-Parsing': 'badge-parsing',
-  Infrastructure: 'badge-infra',
-};
-
-const REASON_LABEL: Record<number, { label: string; color: string }> = {
-  1: { label: 'CANCELLED', color: 'text-status-amber' },
-  2: { label: 'EXPIRED', color: 'text-status-red' },
-  3: { label: 'REJECTED', color: 'text-status-red' },
-};
-
-function PainBar({ score }: { score: number }) {
-  const filled = Math.round(score);
+function PainDots({ score }: { score: number }) {
+  const n = Math.round(score);
   return (
-    <div className="flex gap-0.5 items-center">
+    <div style={{ display: 'flex', gap: 3, alignItems: 'center' }}>
       {Array.from({ length: 10 }, (_, i) => (
         <div
           key={i}
-          className={`h-1.5 w-1 rounded-sm ${
-            i < filled
-              ? filled >= 8
-                ? 'bg-status-red'
-                : filled >= 5
-                ? 'bg-status-amber'
-                : 'bg-status-green'
-              : 'bg-border-default'
-          }`}
+          style={{
+            width: 4, height: 4, borderRadius: '50%',
+            background: i < n ? 'var(--ink)' : 'var(--border)',
+          }}
         />
       ))}
-      <span className="ml-1 font-mono text-xs text-text-secondary">{score}/10</span>
     </div>
   );
 }
 
-function truncateAddr(addr: string): string {
-  if (addr.length < 12) return addr;
-  return `${addr.slice(0, 6)}…${addr.slice(-4)}`;
-}
-
-function timeAgo(isoStr: string): string {
-  const diff = Math.floor((Date.now() - new Date(isoStr).getTime()) / 1000);
-  if (diff < 60) return `${diff}s ago`;
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
-}
+// Archive-style column layout
+const COLS = '48px 80px 96px 64px 100px 1fr';
 
 export default function LiveTerminalFeed({ jobs }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
 
-  // Auto-scroll to top when new jobs come in
   useEffect(() => {
-    if (scrollRef.current) {
-      scrollRef.current.scrollTo({ top: 0, behavior: 'smooth' });
-    }
+    scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
   }, [jobs.length]);
 
   return (
-    <div className="card h-full flex flex-col">
-      <div className="card-header">
-        <div className="flex items-center gap-2">
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
+      {/* Description row */}
+      <div
+        style={{
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'space-between',
+          marginBottom: 20,
+          paddingBottom: 16,
+          borderBottom: '1px solid var(--border)',
+        }}
+      >
+        <p className="body-text" style={{ fontSize: 13 }}>
+          Live stream of failed agent jobs, classified by category and pain severity.
+        </p>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
           <span className="live-dot" />
-          <span className="card-label">Live Terminal Feed</span>
-        </div>
-        <div className="flex items-center gap-3">
-          <span className="text-xs font-mono text-text-muted">{jobs.length} events</span>
-          <span className="text-xs font-mono text-status-green animate-blink">█</span>
+          <span className="sys-label">{jobs.length} EVENTS</span>
+          <span
+            className="mono-val"
+            style={{ fontSize: 10, color: 'var(--green)', animation: 'blink 1.2s step-end infinite' }}
+          >
+            █
+          </span>
         </div>
       </div>
 
-      {/* Terminal header bar */}
-      <div className="grid grid-cols-[85px_75px_120px_90px_1fr] gap-4 px-4 py-1.5 border-b border-border-subtle bg-bg-secondary">
-        {['CAUSE', 'JOB ID', 'CATEGORY', 'PAIN', 'SUMMARY'].map((h) => (
-          <div key={h} className="text-xs font-mono font-medium text-text-muted uppercase tracking-wider truncate">
-            {h}
-          </div>
+      {/* Column headers */}
+      <div
+        style={{
+          display: 'grid',
+          gridTemplateColumns: COLS,
+          gap: '0 16px',
+          paddingBottom: 8,
+          borderBottom: '1px solid var(--border)',
+        }}
+      >
+        {['#', 'WHEN', 'CAUSE', 'USDC', 'CATEGORY', 'SUMMARY & SKILLS'].map((h) => (
+          <span key={h} className="sys-label">{h}</span>
         ))}
       </div>
 
-      {/* Scrollable feed */}
+      {/* Rows */}
       <div
         ref={scrollRef}
-        className="flex-1 overflow-y-auto px-4 min-h-0"
-        style={{ maxHeight: '100%' }}
+        style={{ flex: 1, overflowY: 'auto', minHeight: 0 }}
       >
         {jobs.length === 0 ? (
-          <div className="flex items-center justify-center h-full">
-            <div className="flex flex-col items-center gap-3">
-              <div className="font-mono text-xs text-text-muted animate-pulse">
-                Listening for failed agent jobs...
-              </div>
-              <div className="font-mono text-xs text-text-muted opacity-50">
-                <span className="animate-blink">█</span>
-              </div>
-            </div>
+          <div
+            style={{
+              height: '100%', display: 'flex', flexDirection: 'column',
+              alignItems: 'center', justifyContent: 'center', gap: 12,
+            }}
+          >
+            <span className="sys-label">Listening for failed agent jobs…</span>
+            <span className="mono-val" style={{ fontSize: 12, color: 'var(--ink-5)', animation: 'blink 1.2s step-end infinite' }}>
+              █
+            </span>
           </div>
         ) : (
-          jobs.map((job, idx) => {
-            const reason = REASON_LABEL[job.reasonCode] ?? { label: 'UNKNOWN', color: 'text-text-muted' };
-            const isNew = idx === 0;
-            return (
-              <div
-                key={job.id}
-                className={`terminal-row ${isNew ? 'bg-bg-hover/30' : ''}`}
+          jobs.map((job, idx) => (
+            <div
+              key={job.id}
+              className="archive-row"
+              style={{
+                display: 'grid',
+                gridTemplateColumns: COLS,
+                gap: '0 16px',
+                padding: '10px 0',
+                alignItems: 'start',
+                animation: 'row-in 0.22s ease-out both',
+                background: idx === 0 ? 'var(--bg-subtle)' : 'transparent',
+              }}
+            >
+              {/* Index */}
+              <span className="mono-val" style={{ fontSize: 10, color: 'var(--ink-4)', paddingTop: 2 }}>
+                {String(idx + 1).padStart(2, '0')}
+              </span>
+
+              {/* When */}
+              <span className="mono-val" style={{ fontSize: 10, color: 'var(--ink-4)', paddingTop: 2 }}>
+                {timeAgo(job.processedAt)}
+              </span>
+
+              {/* Cause */}
+              <span
+                className="mono-val"
+                style={{
+                  fontSize: 10, fontWeight: 500, paddingTop: 2,
+                  color: job.reasonCode === 1 ? 'var(--amber)' : 'var(--red)',
+                }}
               >
-                {/* Time / Cause */}
-                <div className="text-text-muted">
-                  <div>{timeAgo(job.processedAt)}</div>
-                  <div className={`text-xs ${reason.color}`}>{reason.label}</div>
-                </div>
+                {REASON[job.reasonCode] ?? 'UNKNOWN'}
+              </span>
 
-                {/* Job ID + owner */}
-                <div>
-                  <div className="text-text-accent">#{job.jobId}</div>
-                  <div className="text-text-muted text-xs">{truncateAddr(job.owner)}</div>
-                </div>
+              {/* Bounty */}
+              <span
+                className="mono-val tabular-nums"
+                style={{ fontSize: 11, fontWeight: 600, color: 'var(--ink)', paddingTop: 2 }}
+              >
+                ${job.bountyAmount.toFixed(0)}
+              </span>
 
-                {/* Category */}
-                <div>
-                  <span className={CATEGORY_BADGE[job.analysis.category] ?? 'badge bg-bg-tertiary text-text-muted border border-border-default'}>
-                    {job.analysis.category}
-                  </span>
-                  <div className="mt-1 text-text-muted">
-                    ${job.bountyAmount.toFixed(0)} USDC
-                  </div>
-                </div>
+              {/* Category */}
+              <div style={{ paddingTop: 2 }}>
+                <span
+                  className="cat-pill"
+                  style={{ color: CAT_COLOR[job.analysis.category] ?? 'var(--ink-3)' }}
+                >
+                  {job.analysis.category}
+                </span>
+              </div>
 
-                {/* Pain score */}
-                <div>
-                  <PainBar score={job.analysis.pain_score} />
-                  <div className="text-text-muted text-xs mt-1">
-                    {job.source === 'simulator' ? '⚡ sim' : ''}
-                  </div>
+              {/* Summary */}
+              <div>
+                <div
+                  style={{
+                    fontSize: 12, color: 'var(--ink-2)', lineHeight: 1.5,
+                    display: '-webkit-box',
+                    WebkitLineClamp: 1,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden',
+                    marginBottom: 5,
+                  }}
+                >
+                  {job.analysis.summary_en}
                 </div>
-
-                {/* Summary */}
-                <div className="min-w-0">
-                  <div className="text-text-primary leading-tight line-clamp-2">
-                    {job.analysis.summary_en}
-                  </div>
-                  <div className="flex flex-wrap gap-1 mt-1">
-                    {job.analysis.missing_skills.slice(0, 3).map((skill) => (
-                      <span key={skill} className="text-xs font-mono text-text-muted bg-bg-secondary border border-border-subtle px-1 rounded-sm">
-                        {skill}
-                      </span>
-                    ))}
-                    {job.analysis.missing_skills.length > 3 && (
-                      <span className="text-xs font-mono text-text-muted">
-                        +{job.analysis.missing_skills.length - 3}
-                      </span>
-                    )}
-                  </div>
+                <PainDots score={job.analysis.pain_score} />
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: 3, marginTop: 4 }}>
+                  {job.analysis.missing_skills.slice(0, 4).map((s) => (
+                    <span
+                      key={s}
+                      className="mono-val"
+                      style={{
+                        fontSize: 9, color: 'var(--ink-4)',
+                        background: 'var(--bg-subtle)',
+                        border: '1px solid var(--border)',
+                        padding: '1px 5px', borderRadius: 2,
+                      }}
+                    >
+                      {s}
+                    </span>
+                  ))}
+                  {job.analysis.missing_skills.length > 4 && (
+                    <span className="mono-val" style={{ fontSize: 9, color: 'var(--ink-5)' }}>
+                      +{job.analysis.missing_skills.length - 4}
+                    </span>
+                  )}
                 </div>
               </div>
-            );
-          })
+            </div>
+          ))
         )}
       </div>
     </div>
