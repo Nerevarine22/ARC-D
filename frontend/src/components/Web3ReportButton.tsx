@@ -82,7 +82,6 @@ function LinkIcon() {
 }
 
 export default function Web3ReportButton({ stats: _stats }: Props) {
-  const stats = _stats; // used inside generatePDFReport
   const [status, setStatus] = useState<ButtonState>('disconnected');
   const [account, setAccount] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
