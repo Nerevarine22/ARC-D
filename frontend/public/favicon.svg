@@ -1,8 +1,5 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" width="32" height="32">
-  <!-- Red Bar (Vertically centered) -->
-  <rect x="4" y="3" width="6" height="26" rx="2" fill="#ff4757" />
-  <!-- Amber Bar (Vertically centered) -->
-  <rect x="13" y="7" width="6" height="18" rx="2" fill="#f59e0b" />
-  <!-- Green Bar (Vertically centered) -->
-  <rect x="22" y="5" width="6" height="22" rx="2" fill="#00d084" />
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <rect width="256" height="256" fill="#0A0A0B" rx="56"/>
+  <text x="120" y="150" fill="#8A9A86" font-family="monospace" font-size="120" font-weight="bold" font-style="italic" text-anchor="middle" letter-spacing="-8">//</text>
+  <text x="128" y="210" fill="#FFFFFF" font-family="monospace" font-size="48" font-weight="bold" text-anchor="middle" letter-spacing="2">UNMET</text>
 </svg>
