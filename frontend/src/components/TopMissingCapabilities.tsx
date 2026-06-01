@@ -6,19 +6,11 @@ import type { SkillStat } from '../hooks/useStats';
 
 interface Props {
   skills: SkillStat[];
-  byCategory: Record<string, number>;
 }
 
-// Dark styling for the mustard yellow background
-const COLORS = [
-  'rgba(0,0,0,0.9)', 'rgba(0,0,0,0.7)', 'rgba(0,0,0,0.85)', 'rgba(0,0,0,0.6)',
-  'rgba(0,0,0,0.75)', 'rgba(0,0,0,0.5)'
-];
-const COLOR_MAP: Record<string, string> = {};
-function getColor(skill: string, idx: number) {
-  if (!COLOR_MAP[skill]) COLOR_MAP[skill] = COLORS[idx % COLORS.length];
-  return COLOR_MAP[skill];
-}
+// Dark styling scheme matching the new Bento grid
+const BAR_COLOR = '#111111';
+
 function trimLabel(s: string) {
   return s.length > 45 ? s.slice(0, 42) + '…' : s;
 }
@@ -61,7 +53,7 @@ function CountLabel(props: any) {
   );
 }
 
-export default function TopMissingCapabilities({ skills, byCategory }: Props) {
+export default function TopMissingCapabilities({ skills }: Props) {
   const data = skills.slice(0, 14); // show more items for denser layout
 
   return (
@@ -98,8 +90,8 @@ export default function TopMissingCapabilities({ skills, byCategory }: Props) {
               />
               <Tooltip content={<Tip />} cursor={{ fill: 'rgba(0,0,0,0.05)' }} />
               <Bar dataKey="count" radius={4} label={<CountLabel />}>
-                {data.map((e, i) => (
-                  <Cell key={e.skill} fill={getColor(e.skill, i)} />
+                {data.map((e) => (
+                  <Cell key={e.skill} fill={BAR_COLOR} />
                 ))}
               </Bar>
             </BarChart>

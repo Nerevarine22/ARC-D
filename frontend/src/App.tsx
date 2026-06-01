@@ -69,7 +69,7 @@ export default function App() {
 
           {/* Middle Row: Growth Chart and Category Breakdown */}
           <div className="bento-card" style={{ gridColumn: 'span 2', height: 360, background: '#958AAA', color: '#111' }}>
-            <TopMissingCapabilities skills={stats.topSkills} byCategory={stats.byCategory} />
+            <TopMissingCapabilities skills={stats.topSkills} />
           </div>
           <div style={{ gridColumn: 'span 1', height: 360 }}>
             <InsightsCards stats={stats} />
