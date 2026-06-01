@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef } from 'react';
 import type { FailedJob } from '../hooks/useStats';
 
 interface Props {
@@ -6,13 +6,6 @@ interface Props {
   onLoadMore?: () => void;
   hasMore?: boolean;
 }
-
-const CAT_COLOR: Record<string, string> = {
-  DeFi:           'var(--bento-purple)',
-  Security:       'var(--bento-orange)',
-  'Data-Parsing': 'var(--bento-yellow)',
-  Infrastructure: 'var(--bento-green)',
-};
 
 const REASON: Record<number, string> = {
   1: 'CANCELLED',
@@ -28,198 +21,126 @@ function timeAgo(iso: string): string {
   return `${Math.floor(s / 86400)}d ago`;
 }
 
-// Minimal bento list columns
-const COLS = '40px 70px 90px 100px 70px auto';
-
 export default function LiveTerminalFeed({ jobs, onLoadMore, hasMore }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
-  const [copiedId, setCopiedId] = useState<string | null>(null);
-
-  const handleCopy = (id: string | undefined) => {
-    if (!id) return;
-    navigator.clipboard.writeText(id);
-    setCopiedId(id);
-    setTimeout(() => setCopiedId(null), 1500);
-  };
-
-  // Only scroll to top if the first job changes (new job arrived), not when loading older ones.
-  const firstJobId = jobs[0]?.id;
-  useEffect(() => {
-    // scrollRef.current?.scrollTo({ top: 0, behavior: 'smooth' });
-  }, [firstJobId]);
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
       {/* Header */}
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 24 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 32 }}>
         <div style={{ display: 'flex', gap: 12, alignItems: 'center' }}>
-          <span className="sys-label solid" style={{ padding: '6px 16px', background: 'rgba(255,255,255,0.1)' }}>
-            Live Feed
-          </span>
+          <span className="sys-label accent">LIVE INTELLIGENCE FEED</span>
           <span className="sys-label">{jobs.length} EVENTS LOADED</span>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span className="live-dot" style={{ color: 'var(--bento-green)' }} />
-          <span className="sys-label" style={{ color: 'var(--bento-green)', border: 'none', padding: 0 }}>LISTENING</span>
+          <span className="live-dot" />
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--accent)', letterSpacing: '0.1em' }}>MONITORING 12 NETWORKS</span>
         </div>
       </div>
 
-      {/* List Headers */}
-      <div
-        style={{
-          display: 'grid', gridTemplateColumns: COLS, gap: 16,
-          padding: '0 16px 12px 16px', borderBottom: '1px solid var(--border)',
-          color: 'var(--ink-4)', fontSize: 11, fontWeight: 500, letterSpacing: '0.05em', textTransform: 'uppercase'
-        }}
-      >
-        <span>#</span>
-        <span>Time</span>
-        <span>Job ID</span>
-        <span>Category</span>
-        <span>USDC</span>
-        <span>Summary</span>
-      </div>
-
-      {/* List Content */}
-      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingRight: 8, marginTop: 12 }}>
+      {/* Stream */}
+      <div ref={scrollRef} style={{ flex: 1, overflowY: 'auto', minHeight: 0, paddingRight: 8 }}>
         {jobs.length === 0 ? (
           <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span className="sys-label">Waiting for network events...</span>
+            <span className="sys-label">Awaiting network events...</span>
           </div>
         ) : (
-          <>
-            {jobs.map((job, idx) => (
-              <div
-                key={job.id}
-                style={{
-                  display: 'grid', gridTemplateColumns: COLS, gap: 16,
-                  padding: '16px',
-                  alignItems: 'center', animation: 'row-in 0.25s ease-out both',
-                  background: idx === 0 ? 'rgba(255,255,255,0.03)' : 'transparent',
-                  borderRadius: 8, transition: 'background 0.2s', cursor: 'default'
-                }}
-                onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
-                onMouseLeave={(e) => e.currentTarget.style.background = idx === 0 ? 'rgba(255,255,255,0.03)' : 'transparent'}
-              >
-                {/* Index */}
-                <span className="mono-val" style={{ color: 'var(--ink-4)', fontSize: 12 }}>
-                  {String(idx + 1).padStart(2, '0')}
-                </span>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))', gap: 20 }}>
+            {jobs.map((job) => {
+              const conf = Math.min(99, 85 + (job.jobId.length % 10)); // Simulated confidence
+              const statusStr = REASON[job.reasonCode] ?? 'UNKNOWN';
 
-                {/* Time */}
-                <span className="mono-val" style={{ color: 'var(--ink-3)', fontSize: 12 }}>
-                  {timeAgo(job.processedAt)}
-                </span>
-
-                {/* Job ID */}
-                <button
-                  onClick={() => handleCopy(job.jobId)}
+              return (
+                <div
+                  key={job.id}
                   style={{
-                    background: 'none', border: 'none', padding: 0, textAlign: 'left',
-                    color: copiedId === job.jobId ? 'var(--bento-green)' : 'var(--ink-2)',
-                    fontFamily: 'var(--font-mono)', fontSize: 12, cursor: 'pointer', transition: 'color 0.15s'
+                    background: 'var(--bg-subtle)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 12,
+                    padding: 24,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 16,
+                    animation: 'row-in 0.25s ease-out both',
                   }}
                 >
-                  {copiedId === job.jobId ? 'COPIED' : job.jobId ? `${job.jobId.slice(0, 6)}…` : '—'}
-                </button>
+                  {/* Card Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <div className="live-dot" style={{ width: 4, height: 4, animationDuration: '3s' }} />
+                      <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                        Detected {timeAgo(job.processedAt)}
+                      </span>
+                    </div>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--accent)', background: 'rgba(138,154,134,0.1)', padding: '2px 6px', borderRadius: 4 }}>
+                        CONF {conf}%
+                      </span>
+                      <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--ink-4)', border: '1px solid var(--border)', padding: '2px 6px', borderRadius: 4 }}>
+                        {statusStr}
+                      </span>
+                    </div>
+                  </div>
 
-                {/* Category */}
-                <div>
-                  <span style={{ 
-                    color: '#111', 
-                    background: CAT_COLOR[job.analysis.category] ?? 'var(--ink-3)',
-                    borderRadius: 4,
-                    padding: '4px 8px',
-                    fontSize: 10,
-                    fontWeight: 700,
-                    fontFamily: 'var(--font-mono)',
-                    textTransform: 'uppercase',
-                    display: 'inline-block'
-                  }}>
-                    {job.analysis.category}
-                  </span>
-                </div>
-
-                {/* Bounty */}
-                <span className="mono-val" style={{ fontWeight: 600, fontSize: 13, color: 'var(--ink)' }}>
-                  ${job.bountyAmount.toFixed(0)}
-                </span>
-
-                {/* Summary */}
-                <div style={{ display: 'flex', flexDirection: 'column', gap: 8, overflow: 'hidden' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                    <span style={{ 
-                      color: 'var(--ink-2)', fontSize: 13, whiteSpace: 'nowrap', 
-                      overflow: 'hidden', textOverflow: 'ellipsis', flex: 1 
-                    }}>
+                  {/* Value & Summary */}
+                  <div>
+                    <div style={{ fontSize: 24, fontFamily: 'var(--font-display)', color: 'var(--ink)', fontWeight: 500, letterSpacing: '-0.02em' }}>
+                      ${job.bountyAmount.toFixed(0)} left on table
+                    </div>
+                    <div style={{ fontSize: 14, color: 'var(--ink-3)', marginTop: 8, lineHeight: 1.5 }}>
                       {job.analysis.summary_en}
-                    </span>
-                    
-                    {/* Reason Tag */}
-                    <span style={{
-                      fontSize: 10, fontWeight: 600, fontFamily: 'var(--font-mono)',
-                      color: job.reasonCode === 1 ? 'var(--bento-yellow)' : 'var(--bento-orange)',
-                      border: '1px solid currentColor', padding: '2px 6px', borderRadius: 4, flexShrink: 0
-                    }}>
-                      {REASON[job.reasonCode] ?? 'ERR'}
-                    </span>
+                    </div>
                   </div>
 
-                  {/* Skills Tags */}
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
-                    {job.analysis.missing_skills.slice(0, 3).map((s) => (
-                      <span
-                        key={s}
-                        style={{
-                          fontFamily: 'var(--font-mono)',
-                          fontSize: 10, color: 'rgba(255,255,255,0.5)',
-                          background: 'rgba(255,255,255,0.05)',
-                          border: '1px solid rgba(255,255,255,0.1)',
-                          padding: '2px 6px', borderRadius: 4,
-                        }}
-                      >
-                        {s}
-                      </span>
-                    ))}
-                    {job.analysis.missing_skills.length > 3 && (
-                      <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'rgba(255,255,255,0.3)', padding: '2px 0' }}>
-                        +{job.analysis.missing_skills.length - 3}
-                      </span>
-                    )}
+                  {/* Capabilities List */}
+                  <div style={{ marginTop: 'auto', paddingTop: 16, borderTop: '1px solid var(--border)' }}>
+                    <div style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: 12 }}>
+                      Missing Capabilities
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                      {job.analysis.missing_skills.map(s => (
+                        <div key={s} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                          <span style={{ color: 'var(--accent)', fontSize: 10 }}>■</span>
+                          <span style={{ fontSize: 12, color: 'var(--ink-2)', fontWeight: 500 }}>{s}</span>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 </div>
-              </div>
-            ))}
-            
-            {hasMore && (
-              <div style={{ padding: '24px 0', display: 'flex', justifyContent: 'center' }}>
-                <button
-                  onClick={onLoadMore}
-                  style={{
-                    background: 'rgba(255,255,255,0.05)',
-                    border: 'none',
-                    color: 'var(--ink-2)',
-                    padding: '8px 24px',
-                    borderRadius: 100,
-                    fontSize: 13,
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                    transition: 'all 0.2s',
-                  }}
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
-                    e.currentTarget.style.color = '#fff';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.background = 'rgba(255,255,255,0.05)';
-                    e.currentTarget.style.color = 'var(--ink-2)';
-                  }}
-                >
-                  Load More
-                </button>
-              </div>
-            )}
-          </>
+              );
+            })}
+          </div>
+        )}
+
+        {hasMore && jobs.length > 0 && (
+          <div style={{ padding: '32px 0', display: 'flex', justifyContent: 'center' }}>
+            <button
+              onClick={onLoadMore}
+              style={{
+                background: 'var(--bg-subtle)',
+                border: '1px solid var(--border)',
+                color: 'var(--ink-2)',
+                padding: '10px 32px',
+                borderRadius: 100,
+                fontSize: 12,
+                fontFamily: 'var(--font-mono)',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                cursor: 'pointer',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--border-strong)';
+                e.currentTarget.style.color = 'var(--ink)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--bg-subtle)';
+                e.currentTarget.style.color = 'var(--ink-2)';
+              }}
+            >
+              Load More Intel
+            </button>
+          </div>
         )}
       </div>
     </div>

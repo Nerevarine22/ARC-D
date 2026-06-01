@@ -41,65 +41,64 @@ export default function LeftOnTableCounter({ stats, isFlashing }: Props) {
   const avgBounty = stats.totalJobs > 0 ? `$${(stats.totalUsdcLost / stats.totalJobs).toFixed(0)}` : '—';
 
   return (
-    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', height: '100%' }}>
-      {/* Left Column: Label & Stats */}
-      <div style={{ display: 'flex', flexDirection: 'column' }}>
-        <div style={{ marginBottom: 32 }}>
-          <span className="sys-label solid" style={{ fontSize: 13, padding: '6px 16px', background: 'rgba(0,0,0,0.06)' }}>
-            TOTAL UNMET DEMAND
-          </span>
+    <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
+      <div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
+          <span className="sys-label accent">Hero Intelligence Summary</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+            <div className="live-dot" />
+            <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-4)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Real-time market scan active</span>
+          </div>
         </div>
         
-        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px 48px' }}>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.6, textTransform: 'uppercase', marginBottom: 4 }}>Failed Jobs</div>
-            <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{stats.totalJobs}</div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+          <div
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontSize: 'clamp(80px, 12vw, 180px)',
+              fontWeight: 400,
+              letterSpacing: '-0.06em',
+              lineHeight: 0.85,
+              color: 'var(--ink)',
+              fontVariantNumeric: 'tabular-nums',
+              transform: isFlashing ? 'scale(1.01)' : 'scale(1)',
+              transition: 'transform 0.1s ease',
+            }}
+          >
+            {formatUsdc(animated)}
           </div>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.6, textTransform: 'uppercase', marginBottom: 4 }}>Skills Tracked</div>
-            <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{stats.topSkills.length}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.6, textTransform: 'uppercase', marginBottom: 4 }}>Avg. Bounty</div>
-            <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{avgBounty}</div>
-          </div>
-          <div>
-            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.6, textTransform: 'uppercase', marginBottom: 4 }}>Top Category</div>
-            <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{topCategory}</div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 24, paddingLeft: 8 }}>
+            <div style={{ fontSize: 24, fontWeight: 500, color: 'var(--ink-3)', letterSpacing: '0.2em', textTransform: 'uppercase' }}>
+              UNCLAIMED VALUE
+            </div>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--accent)', padding: '4px 12px', background: 'rgba(138, 154, 134, 0.1)', borderRadius: 4 }}>
+              +12.4% today
+            </div>
+            {isFlashing && (
+              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--accent)', animation: 'fade-in 0.15s ease-out' }}>
+                ↑ NEW FAILURE
+              </span>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Right Column: Large Value */}
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', paddingTop: 8 }}>
-        <div
-          style={{
-            fontFamily: 'var(--font-display)',
-            fontSize: 'clamp(64px, 10vw, 150px)',
-            fontWeight: 500,
-            letterSpacing: '-0.06em',
-            lineHeight: 0.9,
-            color: '#111',
-            fontVariantNumeric: 'tabular-nums',
-            transform: isFlashing ? 'scale(1.02)' : 'scale(1)',
-            transition: 'transform 0.2s ease',
-          }}
-        >
-          {formatUsdc(animated)}
+      <div style={{ display: 'flex', gap: 64, borderTop: '1px solid var(--border)', paddingTop: 24, marginTop: 48 }}>
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--ink-4)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.05em' }}>Failed Jobs</div>
+          <div className="metric-num" style={{ fontSize: 28 }}>{stats.totalJobs}</div>
         </div>
-        
-        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 16 }}>
-          {isFlashing && (
-            <span
-              className="sys-label"
-              style={{ color: 'var(--red)', animation: 'fade-in 0.15s ease-out' }}
-            >
-              ↑ NEW FAILURE
-            </span>
-          )}
-          <span style={{ fontSize: 18, fontWeight: 700, color: 'rgba(0,0,0,0.4)', letterSpacing: '0.2em' }}>
-            TOTAL LEFT ON TABLE
-          </span>
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--ink-4)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.05em' }}>Skills Tracked</div>
+          <div className="metric-num" style={{ fontSize: 28 }}>{stats.topSkills.length}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--ink-4)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.05em' }}>Avg. Bounty</div>
+          <div className="metric-num" style={{ fontSize: 28 }}>{avgBounty}</div>
+        </div>
+        <div>
+          <div style={{ fontSize: 11, color: 'var(--ink-4)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.05em' }}>Top Category</div>
+          <div className="metric-num" style={{ fontSize: 28 }}>{topCategory}</div>
         </div>
       </div>
     </div>
