@@ -9,10 +9,10 @@ interface Props {
   byCategory: Record<string, number>;
 }
 
-// Monochrome-first palette — dark shades, no neon
+// Dark styling for the mustard yellow background
 const COLORS = [
-  '#111111', '#444444', '#222222', '#555555',
-  '#333333', '#666666', '#1a1a1a', '#4a4a4a',
+  'rgba(0,0,0,0.9)', 'rgba(0,0,0,0.7)', 'rgba(0,0,0,0.85)', 'rgba(0,0,0,0.6)',
+  'rgba(0,0,0,0.75)', 'rgba(0,0,0,0.5)'
 ];
 const COLOR_MAP: Record<string, string> = {};
 function getColor(skill: string, idx: number) {
@@ -20,7 +20,7 @@ function getColor(skill: string, idx: number) {
   return COLOR_MAP[skill];
 }
 function trimLabel(s: string) {
-  return s.length > 34 ? s.slice(0, 31) + '…' : s;
+  return s.length > 45 ? s.slice(0, 42) + '…' : s;
 }
 
 function Tip({ active, payload }: any) {
@@ -29,17 +29,17 @@ function Tip({ active, payload }: any) {
   return (
     <div
       style={{
-        background: '#fff',
-        border: '1px solid var(--border)',
-        borderRadius: 2,
+        background: '#111',
+        color: '#fff',
+        borderRadius: 8,
         padding: '8px 12px',
-        boxShadow: '0 2px 8px rgba(0,0,0,0.06)',
+        boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
       }}
     >
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 600, marginBottom: 3 }}>
+      <div style={{ fontFamily: 'var(--font-display)', fontSize: 13, fontWeight: 500, marginBottom: 3 }}>
         {skill}
       </div>
-      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--red)' }}>
+      <div style={{ fontFamily: 'var(--font-mono)', fontSize: 11, color: 'var(--bento-yellow)' }}>
         {count} failed jobs
       </div>
     </div>
@@ -54,7 +54,7 @@ function CountLabel(props: any) {
       x={x + width + 8} y={y + height / 2 + 1}
       textAnchor="start" dominantBaseline="middle"
       fontSize={10} fontFamily="IBM Plex Mono, monospace"
-      fill="var(--ink-4)"
+      fill="rgba(0,0,0,0.6)"
     >
       {value}
     </text>
@@ -62,71 +62,42 @@ function CountLabel(props: any) {
 }
 
 export default function TopMissingCapabilities({ skills, byCategory }: Props) {
-  const data = skills.slice(0, 15);
+  const data = skills.slice(0, 14); // show more items for denser layout
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
-      {/* Sub-header: category legend */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          marginBottom: 24,
-        }}
-      >
-        <span className="body-text" style={{ fontSize: 13 }}>
-          {skills.length} distinct capability gaps tracked
+      {/* Title */}
+      <div style={{ marginBottom: 16 }}>
+        <span className="sys-label solid" style={{ padding: '6px 16px', background: 'rgba(0,0,0,0.08)' }}>
+          TOP MISSING CAPABILITIES
         </span>
-        <div style={{ display: 'flex', gap: 20 }}>
-          {[
-            { label: 'DeFi',    key: 'DeFi' },
-            { label: 'Security',key: 'Security' },
-            { label: 'Data',    key: 'Data-Parsing' },
-            { label: 'Infra',   key: 'Infrastructure' },
-          ].map(({ label, key }) => {
-            const total = Object.values(byCategory).reduce((s, v) => s + v, 0) || 1;
-            const pct = (((byCategory[key] ?? 0) / total) * 100).toFixed(0);
-            return (
-              <div key={key} style={{ textAlign: 'right' }}>
-                <div className="sys-label">{label}</div>
-                <div
-                  className="mono-val"
-                  style={{ fontSize: 13, fontWeight: 600, color: 'var(--ink)' }}
-                >
-                  {pct}%
-                </div>
-              </div>
-            );
-          })}
-        </div>
       </div>
 
       {/* Chart */}
-      <div style={{ flex: 1, minHeight: 0 }}>
+      <div style={{ flex: 1, minHeight: 0, marginLeft: -16 }}>
         {data.length === 0 ? (
           <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <span className="sys-label">Awaiting data from blockchain…</span>
+            <span className="sys-label" style={{ color: 'rgba(0,0,0,0.5)' }}>Awaiting data…</span>
           </div>
         ) : (
           <ResponsiveContainer width="100%" height="100%">
             <BarChart
               data={data}
               layout="vertical"
-              margin={{ top: 0, right: 48, left: 0, bottom: 0 }}
-              barSize={9}
-              barCategoryGap="20%"
+              margin={{ top: 0, right: 32, left: 0, bottom: 0 }}
+              barSize={6}
+              barCategoryGap="15%"
             >
               <XAxis type="number" hide domain={[0, (m: number) => Math.ceil(m * 1.2)]} />
               <YAxis
                 type="category" dataKey="skill"
-                width={240} interval={0}
+                width={280} interval={0}
                 tickFormatter={trimLabel}
-                tick={{ fill: 'var(--ink-3)', fontSize: 11, fontFamily: 'IBM Plex Mono, monospace' }}
+                tick={{ fill: 'rgba(0,0,0,0.7)', fontSize: 11, fontFamily: 'var(--font-display)' }}
                 tickLine={false} axisLine={false}
               />
-              <Tooltip content={<Tip />} cursor={{ fill: 'rgba(0,0,0,0.025)' }} />
-              <Bar dataKey="count" radius={[0, 2, 2, 0]} label={<CountLabel />}>
+              <Tooltip content={<Tip />} cursor={{ fill: 'rgba(0,0,0,0.05)' }} />
+              <Bar dataKey="count" radius={4} label={<CountLabel />}>
                 {data.map((e, i) => (
                   <Cell key={e.skill} fill={getColor(e.skill, i)} />
                 ))}

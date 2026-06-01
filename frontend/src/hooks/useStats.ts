@@ -50,38 +50,35 @@ export function useStats(_pollIntervalMs = 3000) { // Keep arg for compat, thoug
   const [error, setError] = useState<string | null>(null);
   const prevTotalRef = useRef<number>(0);
   const [isFlashing, setIsFlashing] = useState(false);
+  const [jobLimit, setJobLimit] = useState(50);
 
+  // Global stats subscription
   useEffect(() => {
-    // We will merge data from two listeners
-    let currentStats = { ...EMPTY_STATS };
-
-    const updateState = () => {
-      setStats({ ...currentStats });
-      setIsConnected(true);
-      setLastUpdate(new Date());
-      setError(null);
-
-      if (currentStats.totalUsdcLost !== prevTotalRef.current) {
-        prevTotalRef.current = currentStats.totalUsdcLost;
-        setIsFlashing(true);
-        setTimeout(() => setIsFlashing(false), 600);
-      }
-    };
-
     const unsubscribeStats = onSnapshot(doc(db, 'analytics', 'global_stats'), (docSnap) => {
       if (docSnap.exists()) {
         const data = docSnap.data();
-        currentStats.totalUsdcLost = parseFloat((data.totalLeftOnTable || 0).toFixed(2));
-        currentStats.totalJobs = data.totalJobs || 0;
-        currentStats.byCategory = data.categories || {};
-        
-        const skillsMap: Record<string, number> = data.skills || {};
-        currentStats.topSkills = Object.entries(skillsMap)
-          .map(([skill, count]) => ({ skill, count }))
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 15);
+        setStats(prev => {
+          const next = { ...prev };
+          next.totalUsdcLost = parseFloat((data.totalLeftOnTable || 0).toFixed(2));
+          next.totalJobs = data.totalJobs || 0;
+          next.byCategory = data.categories || {};
           
-        updateState();
+          const skillsMap: Record<string, number> = data.skills || {};
+          next.topSkills = Object.entries(skillsMap)
+            .map(([skill, count]) => ({ skill, count }))
+            .sort((a, b) => b.count - a.count)
+            .slice(0, 15);
+            
+          if (next.totalUsdcLost !== prevTotalRef.current) {
+            prevTotalRef.current = next.totalUsdcLost;
+            setIsFlashing(true);
+            setTimeout(() => setIsFlashing(false), 600);
+          }
+          return next;
+        });
+        setIsConnected(true);
+        setLastUpdate(new Date());
+        setError(null);
       }
     }, (err) => {
       console.error("Firestore global_stats error:", err);
@@ -89,22 +86,28 @@ export function useStats(_pollIntervalMs = 3000) { // Keep arg for compat, thoug
       setIsConnected(false);
     });
 
-    const q = query(collection(db, 'jobs'), orderBy('processedAt', 'desc'), limit(50));
+    return () => unsubscribeStats();
+  }, []);
+
+  // Jobs subscription (depends on jobLimit)
+  useEffect(() => {
+    const q = query(collection(db, 'jobs'), orderBy('processedAt', 'desc'), limit(jobLimit));
     const unsubscribeJobs = onSnapshot(q, (querySnap) => {
       const jobs = querySnap.docs.map(d => d.data() as FailedJob);
-      currentStats.recentJobs = jobs;
-      updateState();
+      setStats(prev => ({ ...prev, recentJobs: jobs }));
+      setIsConnected(true);
+      setLastUpdate(new Date());
+      setError(null);
     }, (err) => {
       console.error("Firestore jobs error:", err);
       setError('Cannot connect to Firebase.');
       setIsConnected(false);
     });
 
-    return () => {
-      unsubscribeStats();
-      unsubscribeJobs();
-    };
-  }, []);
+    return () => unsubscribeJobs();
+  }, [jobLimit]);
 
-  return { stats, isConnected, lastUpdate, error, isFlashing };
+  const loadMoreJobs = () => setJobLimit(l => l + 50);
+
+  return { stats, isConnected, lastUpdate, error, isFlashing, loadMoreJobs, jobLimit };
 }

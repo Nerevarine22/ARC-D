@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
+import type { Stats } from '../hooks/useStats';
 
 interface Props {
-  value: number;
+  stats: Stats;
   isFlashing?: boolean;
 }
 
@@ -34,76 +35,73 @@ function useAnimatedValue(target: number, duration = 800): number {
   return display;
 }
 
-export default function LeftOnTableCounter({ value, isFlashing }: Props) {
-  const animated = useAnimatedValue(value);
+export default function LeftOnTableCounter({ stats, isFlashing }: Props) {
+  const animated = useAnimatedValue(stats.totalUsdcLost);
+  const topCategory = Object.entries(stats.byCategory).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '—';
+  const avgBounty = stats.totalJobs > 0 ? `$${(stats.totalUsdcLost / stats.totalJobs).toFixed(0)}` : '—';
 
   return (
-    <div
-      style={{
-        display: 'inline-flex',
-        flexDirection: 'column',
-        gap: 6,
-        paddingTop: 4,
-      }}
-    >
-      {/* Label */}
-      <div
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: 7,
-        }}
-      >
-        <span className="live-dot" />
-        <span className="sys-label">TOTAL LEFT ON TABLE · USDC · ALL TIME</span>
-      </div>
-
-      {/* Number */}
-      <div
-        style={{
-          fontFamily: 'var(--font-display)',
-          fontSize: 'clamp(64px, 9vw, 130px)',
-          fontWeight: 900,
-          letterSpacing: '-0.06em',
-          lineHeight: 1,
-          color: 'var(--ink)',
-          fontVariantNumeric: 'tabular-nums',
-          transform: isFlashing ? 'scale(1.008)' : 'scale(1)',
-          transition: 'transform 0.2s ease',
-        }}
-      >
-        {formatUsdc(animated)}
-      </div>
-
-      {/* Exact value + flash */}
-      <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-        <span
-          className="mono-val"
-          style={{ fontSize: 11, color: 'var(--ink-4)' }}
-        >
-          {value.toLocaleString('en-US', {
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 2,
-          })}{' '}
-          USDC
-        </span>
-        {isFlashing && (
-          <span
-            className="sys-label"
-            style={{ color: 'var(--red)', animation: 'fade-in 0.15s ease-out' }}
-          >
-            ↑ NEW FAILURE RECORDED
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', height: '100%' }}>
+      {/* Left Column: Label & Stats */}
+      <div style={{ display: 'flex', flexDirection: 'column' }}>
+        <div style={{ marginBottom: 32 }}>
+          <span className="sys-label solid" style={{ fontSize: 13, padding: '6px 16px', background: 'rgba(0,0,0,0.06)' }}>
+            TOTAL UNMET DEMAND
           </span>
-        )}
+        </div>
+        
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '24px 48px' }}>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.6, textTransform: 'uppercase', marginBottom: 4 }}>Failed Jobs</div>
+            <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{stats.totalJobs}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.6, textTransform: 'uppercase', marginBottom: 4 }}>Skills Tracked</div>
+            <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{stats.topSkills.length}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.6, textTransform: 'uppercase', marginBottom: 4 }}>Avg. Bounty</div>
+            <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{avgBounty}</div>
+          </div>
+          <div>
+            <div style={{ fontSize: 11, fontWeight: 600, opacity: 0.6, textTransform: 'uppercase', marginBottom: 4 }}>Top Category</div>
+            <div style={{ fontSize: 20, fontWeight: 700, fontFamily: 'var(--font-mono)' }}>{topCategory}</div>
+          </div>
+        </div>
       </div>
 
-      {/* Descriptor */}
-      <p
-        className="body-text"
-        style={{ fontSize: 13, marginTop: 2 }}
-      >
-        Autonomous agent bounties gone unfulfilled on ARC Testnet
-      </p>
+      {/* Right Column: Large Value */}
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', paddingTop: 8 }}>
+        <div
+          style={{
+            fontFamily: 'var(--font-display)',
+            fontSize: 'clamp(64px, 10vw, 150px)',
+            fontWeight: 500,
+            letterSpacing: '-0.06em',
+            lineHeight: 0.9,
+            color: '#111',
+            fontVariantNumeric: 'tabular-nums',
+            transform: isFlashing ? 'scale(1.02)' : 'scale(1)',
+            transition: 'transform 0.2s ease',
+          }}
+        >
+          {formatUsdc(animated)}
+        </div>
+        
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginTop: 16 }}>
+          {isFlashing && (
+            <span
+              className="sys-label"
+              style={{ color: 'var(--red)', animation: 'fade-in 0.15s ease-out' }}
+            >
+              ↑ NEW FAILURE
+            </span>
+          )}
+          <span style={{ fontSize: 18, fontWeight: 700, color: 'rgba(0,0,0,0.4)', letterSpacing: '0.2em' }}>
+            TOTAL LEFT ON TABLE
+          </span>
+        </div>
+      </div>
     </div>
   );
 }
