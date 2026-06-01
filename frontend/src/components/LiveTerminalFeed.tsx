@@ -88,7 +88,9 @@ export default function LiveTerminalFeed({ jobs, onLoadMore, hasMore }: Props) {
                               background: 'none', border: 'none', padding: 0,
                               color: copiedId === job.jobId ? 'var(--accent)' : 'var(--ink-4)',
                               fontFamily: 'var(--font-mono)', fontSize: 10, cursor: 'pointer', transition: 'color 0.15s',
-                              whiteSpace: 'nowrap'
+                              whiteSpace: 'nowrap',
+                              width: '10ch',
+                              textAlign: 'left'
                             }}
                           >
                             {copiedId === job.jobId ? 'COPIED' : `ID:${job.jobId.slice(0, 6)}…`}
