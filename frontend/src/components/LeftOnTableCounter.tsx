@@ -35,6 +35,54 @@ function useAnimatedValue(target: number, duration = 800): number {
   return display;
 }
 
+function ScanningBlock() {
+  const [logs, setLogs] = useState<string[]>([
+    '> INIT CONNECTION...',
+    '[SYS] SECURE CHANNEL ESTABLISHED',
+    'WAITING FOR TELEMETRY...'
+  ]);
+
+  useEffect(() => {
+    const phrases = [
+      '[NET] SYNCING MEMPOOL',
+      '[VAL] PARSING SIGNATURES',
+      '[MEM] BUFFER POOL NORMAL',
+      '[SYS] HEARTBEAT OK',
+      '[INT] ANALYZING CAPABILITIES',
+      '[ERR] ORPHAN DETECTED',
+      '[NET] LISTENING...'
+    ];
+    
+    const interval = setInterval(() => {
+      const hex = '0x' + Math.floor(Math.random() * 0xFFFFFF).toString(16).padStart(6, '0').toUpperCase();
+      const phrase = phrases[Math.floor(Math.random() * phrases.length)];
+      setLogs(prev => {
+        const next = [...prev, `${phrase} ${hex}`];
+        if (next.length > 5) next.shift();
+        return next;
+      });
+    }, 600);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  return (
+    <div style={{ 
+      display: 'flex', flexDirection: 'column', gap: 6, 
+      fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-4)', 
+      textAlign: 'right', whiteSpace: 'nowrap', 
+      borderRight: '1px solid var(--accent)', paddingRight: 12,
+      paddingBottom: 8, opacity: 0.7
+    }}>
+      {logs.map((log, i) => (
+        <div key={i} style={{ color: i === logs.length - 1 ? 'var(--ink-2)' : 'inherit' }}>
+          {log}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 export default function LeftOnTableCounter({ stats, isFlashing }: Props) {
   const animated = useAnimatedValue(stats.totalUsdcLost);
   const topCategory = Object.entries(stats.byCategory).sort((a, b) => b[1] - a[1])[0]?.[0] ?? '—';
@@ -50,39 +98,43 @@ export default function LeftOnTableCounter({ stats, isFlashing }: Props) {
           </div>
         </div>
         
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div
-            style={{
-              fontFamily: 'var(--font-display)',
-              fontSize: 'clamp(80px, 12vw, 180px)',
-              fontWeight: 400,
-              letterSpacing: '-0.06em',
-              lineHeight: 0.85,
-              color: 'var(--ink)',
-              fontVariantNumeric: 'tabular-nums',
-              transform: isFlashing ? 'scale(1.01)' : 'scale(1)',
-              transition: 'transform 0.1s ease',
-            }}
-          >
-            {formatUsdc(animated)}
-          </div>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 24, paddingLeft: 8 }}>
-            <div style={{ fontSize: 24, fontWeight: 500, color: 'var(--ink-3)', letterSpacing: '0.2em', textTransform: 'uppercase' }}>
-              LEFT ON THE TABLE
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 32 }}>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+            <div
+              style={{
+                fontFamily: 'var(--font-display)',
+                fontSize: 'clamp(80px, 12vw, 180px)',
+                fontWeight: 400,
+                letterSpacing: '-0.06em',
+                lineHeight: 0.85,
+                color: 'var(--ink)',
+                fontVariantNumeric: 'tabular-nums',
+                transform: isFlashing ? 'scale(1.01)' : 'scale(1)',
+                transition: 'transform 0.1s ease',
+              }}
+            >
+              {formatUsdc(animated)}
             </div>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--accent)', padding: '4px 12px', background: 'rgba(138, 154, 134, 0.1)', borderRadius: 4 }}>
-              +12.4% today
+            <div style={{ display: 'flex', alignItems: 'center', gap: 24, paddingLeft: 8 }}>
+              <div style={{ fontSize: 24, fontWeight: 500, color: 'var(--ink-3)', letterSpacing: '0.2em', textTransform: 'uppercase' }}>
+                LEFT ON THE TABLE
+              </div>
+              <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--accent)', padding: '4px 12px', background: 'rgba(138, 154, 134, 0.1)', borderRadius: 4 }}>
+                +12.4% today
+              </div>
+              {isFlashing && (
+                <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--accent)', animation: 'fade-in 0.15s ease-out' }}>
+                  ↑ NEW FAILURE
+                </span>
+              )}
             </div>
-            {isFlashing && (
-              <span style={{ fontFamily: 'var(--font-mono)', fontSize: 12, color: 'var(--accent)', animation: 'fade-in 0.15s ease-out' }}>
-                ↑ NEW FAILURE
-              </span>
-            )}
           </div>
+          
+          <ScanningBlock />
         </div>
       </div>
 
-      <div style={{ display: 'flex', gap: 64, borderTop: '1px solid var(--border)', paddingTop: 24, marginTop: 48 }}>
+      <div style={{ display: 'flex', gap: 64, borderTop: '1px solid var(--border)', paddingTop: 24, marginTop: 48, flexWrap: 'wrap' }}>
         <div>
           <div style={{ fontSize: 11, color: 'var(--ink-4)', fontFamily: 'var(--font-mono)', textTransform: 'uppercase', marginBottom: 8, letterSpacing: '0.05em' }}>Failed Jobs</div>
           <div className="metric-num" style={{ fontSize: 28 }}>{stats.totalJobs}</div>
