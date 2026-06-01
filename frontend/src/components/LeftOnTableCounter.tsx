@@ -44,7 +44,6 @@ export default function LeftOnTableCounter({ stats, isFlashing }: Props) {
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', justifyContent: 'space-between' }}>
       <div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 16, marginBottom: 32 }}>
-          <span className="sys-label accent">Hero Intelligence Summary</span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
             <div className="live-dot" />
             <span style={{ fontFamily: 'var(--font-mono)', fontSize: 10, color: 'var(--ink-4)', letterSpacing: '0.1em', textTransform: 'uppercase' }}>Real-time market scan active</span>
@@ -69,7 +68,7 @@ export default function LeftOnTableCounter({ stats, isFlashing }: Props) {
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: 24, paddingLeft: 8 }}>
             <div style={{ fontSize: 24, fontWeight: 500, color: 'var(--ink-3)', letterSpacing: '0.2em', textTransform: 'uppercase' }}>
-              UNCLAIMED VALUE
+              LEFT ON THE TABLE
             </div>
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 13, color: 'var(--accent)', padding: '4px 12px', background: 'rgba(138, 154, 134, 0.1)', borderRadius: 4 }}>
               +12.4% today

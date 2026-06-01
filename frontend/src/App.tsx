@@ -29,8 +29,8 @@ function Nav({ stats }: { stats: Stats }) {
           <span style={{ fontFamily: 'var(--font-display)', fontSize: 18, fontWeight: 700, letterSpacing: '0.02em', color: 'var(--ink)' }}>
             ARC <span style={{ color: 'var(--ink-4)', fontWeight: 400 }}>//</span>
           </span>
-          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 11, fontWeight: 500, color: 'var(--ink-3)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
-            PROPRIETARY INTELLIGENCE NETWORK
+          <span style={{ fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 600, color: 'var(--ink-2)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>
+            UNMET
           </span>
           <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginLeft: 16 }}>
             <div className="live-dot" />
