@@ -197,43 +197,43 @@ export default function Web3ReportButton({ stats: _stats }: Props) {
 
   const generatePDFReport = (jobs: FailedJob[], txnHash: string) => {
     const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4' });
-    const drawBg = () => { doc.setFillColor(11, 15, 25); doc.rect(0, 0, 210, 297, 'F'); };
+    const drawBg = () => { doc.setFillColor(10, 10, 11); doc.rect(0, 0, 210, 297, 'F'); };
     const drawHeader = (page: number, tx: string) => {
-      doc.setFont('courier', 'bold'); doc.setFontSize(8); doc.setTextColor(0, 255, 204);
-      doc.text('ARC MARKET WATCHDOG // SYSTEM INTELLIGENCE REPORT', 15, 12);
-      doc.setFont('courier', 'normal'); doc.setFontSize(7); doc.setTextColor(143, 156, 174);
+      doc.setFont('courier', 'bold'); doc.setFontSize(8); doc.setTextColor(138, 154, 134);
+      doc.text('ARC // PROPRIETARY INTELLIGENCE NETWORK', 15, 12);
+      doc.setFont('courier', 'normal'); doc.setFontSize(7); doc.setTextColor(115, 115, 115);
       doc.text(`${new Date().toISOString().slice(0, 19)} | LIC: ARC-WD-${tx.slice(2, 10).toUpperCase()} | PAGE ${page}`, 195, 12, { align: 'right' });
-      doc.setDrawColor(0, 255, 204); doc.setLineWidth(0.2); doc.line(15, 15, 195, 15);
+      doc.setDrawColor(138, 154, 134); doc.setLineWidth(0.2); doc.line(15, 15, 195, 15);
     };
     const drawFooter = () => {
-      doc.setDrawColor(31, 38, 51); doc.setLineWidth(0.2); doc.line(15, 282, 195, 282);
-      doc.setFont('courier', 'normal'); doc.setFontSize(7); doc.setTextColor(143, 156, 174);
+      doc.setDrawColor(30, 30, 33); doc.setLineWidth(0.2); doc.line(15, 282, 195, 282);
+      doc.setFont('courier', 'normal'); doc.setFontSize(7); doc.setTextColor(115, 115, 115);
       doc.text('CONFIDENTIAL // FOR INTERNAL AGENT AUDIT ONLY', 15, 287);
       doc.text('POWERED BY NEREVARIN99 & GEMINI AI', 195, 287, { align: 'right' });
     };
 
     drawBg(); drawHeader(1, txnHash); drawFooter();
-    doc.setFont('courier', 'bold'); doc.setFontSize(14); doc.setTextColor(255, 255, 255);
-    doc.text('ARC NETWORK AGENT DEMAND & SKILL-GAP INTELLIGENCE', 15, 26);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(255, 255, 255);
+    doc.text('UNMET DEMAND & CAPABILITY GAP REPORT', 15, 26);
 
     autoTable(doc, {
       startY: 40,
-      head: [['Job ID', 'Category', 'Bounty USDC', 'Status', 'Timestamp']],
+      head: [['Job ID', 'Category', 'Bounty', 'Status', 'Timestamp']],
       body: jobs.map(job => [
         job.jobId || '',
         job.analysis?.category || 'Unknown',
-        `$${(job.bountyAmount || 0).toFixed(2)} USDC`,
+        `$${(job.bountyAmount || 0).toFixed(0)}`,
         job.reasonCode === 1 ? 'Cancelled' : job.reasonCode === 2 ? 'Expired' : 'Rejected',
         new Date(job.processedAt).toISOString().replace('T', ' ').slice(0, 19),
       ]),
       theme: 'grid',
-      styles: { font: 'courier', fontSize: 7.5, textColor: [255, 255, 255], fillColor: [11, 15, 25], lineColor: [31, 38, 51], lineWidth: 0.1 },
-      headStyles: { fillColor: [22, 27, 38], textColor: [0, 255, 204], fontStyle: 'bold' },
+      styles: { font: 'courier', fontSize: 7.5, textColor: [235, 235, 235], fillColor: [10, 10, 11], lineColor: [30, 30, 33], lineWidth: 0.1 },
+      headStyles: { fillColor: [18, 18, 20], textColor: [138, 154, 134], fontStyle: 'bold' },
       willDrawPage: () => { drawBg(); drawHeader(doc.getNumberOfPages(), txnHash); drawFooter(); },
       margin: { top: 20, bottom: 20 },
     });
 
-    doc.save('ARC_Market_Intelligence_Report.pdf');
+    doc.save('ARC_Intelligence_Report.pdf');
   };
 
   const triggerPaymentAndDownload = async () => {
