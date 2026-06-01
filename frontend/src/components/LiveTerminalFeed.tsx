@@ -73,10 +73,10 @@ export default function LiveTerminalFeed({ jobs, onLoadMore, hasMore }: Props) {
                   }}
                 >
                   {/* Card Header */}
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <div className="live-dot" style={{ width: 4, height: 4, animationDuration: '3s' }} />
-                      <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                      <div className="live-dot" style={{ width: 4, height: 4, animationDuration: '3s', flexShrink: 0 }} />
+                      <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '0.05em', whiteSpace: 'nowrap' }}>
                         Detected {timeAgo(job.processedAt)}
                       </span>
                       {job.jobId && (
@@ -87,7 +87,8 @@ export default function LiveTerminalFeed({ jobs, onLoadMore, hasMore }: Props) {
                             style={{
                               background: 'none', border: 'none', padding: 0,
                               color: copiedId === job.jobId ? 'var(--accent)' : 'var(--ink-4)',
-                              fontFamily: 'var(--font-mono)', fontSize: 10, cursor: 'pointer', transition: 'color 0.15s'
+                              fontFamily: 'var(--font-mono)', fontSize: 10, cursor: 'pointer', transition: 'color 0.15s',
+                              whiteSpace: 'nowrap'
                             }}
                           >
                             {copiedId === job.jobId ? 'COPIED' : `ID:${job.jobId.slice(0, 6)}…`}
@@ -95,11 +96,11 @@ export default function LiveTerminalFeed({ jobs, onLoadMore, hasMore }: Props) {
                         </>
                       )}
                     </div>
-                    <div style={{ display: 'flex', gap: 8 }}>
-                      <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--accent)', background: 'rgba(138,154,134,0.1)', padding: '2px 6px', borderRadius: 4 }}>
+                    <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                      <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--accent)', background: 'rgba(138,154,134,0.1)', padding: '2px 6px', borderRadius: 4, whiteSpace: 'nowrap' }}>
                         CONF {conf}%
                       </span>
-                      <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--ink-4)', border: '1px solid var(--border)', padding: '2px 6px', borderRadius: 4 }}>
+                      <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--ink-4)', border: '1px solid var(--border)', padding: '2px 6px', borderRadius: 4, whiteSpace: 'nowrap' }}>
                         {statusStr}
                       </span>
                     </div>
