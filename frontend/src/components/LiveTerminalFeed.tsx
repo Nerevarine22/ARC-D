@@ -1,4 +1,4 @@
-import { useRef } from 'react';
+import { useRef, useState } from 'react';
 import type { FailedJob } from '../hooks/useStats';
 
 interface Props {
@@ -23,6 +23,14 @@ function timeAgo(iso: string): string {
 
 export default function LiveTerminalFeed({ jobs, onLoadMore, hasMore }: Props) {
   const scrollRef = useRef<HTMLDivElement>(null);
+  const [copiedId, setCopiedId] = useState<string | null>(null);
+
+  const handleCopy = (id: string | undefined) => {
+    if (!id) return;
+    navigator.clipboard.writeText(id);
+    setCopiedId(id);
+    setTimeout(() => setCopiedId(null), 1500);
+  };
 
   return (
     <div style={{ height: '100%', display: 'flex', flexDirection: 'column' }}>
@@ -71,6 +79,21 @@ export default function LiveTerminalFeed({ jobs, onLoadMore, hasMore }: Props) {
                       <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--ink-4)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
                         Detected {timeAgo(job.processedAt)}
                       </span>
+                      {job.jobId && (
+                        <>
+                          <span style={{ color: 'var(--border)' }}>|</span>
+                          <button
+                            onClick={() => handleCopy(job.jobId)}
+                            style={{
+                              background: 'none', border: 'none', padding: 0,
+                              color: copiedId === job.jobId ? 'var(--accent)' : 'var(--ink-4)',
+                              fontFamily: 'var(--font-mono)', fontSize: 10, cursor: 'pointer', transition: 'color 0.15s'
+                            }}
+                          >
+                            {copiedId === job.jobId ? 'COPIED' : `ID:${job.jobId.slice(0, 6)}…`}
+                          </button>
+                        </>
+                      )}
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <span style={{ fontSize: 10, fontFamily: 'var(--font-mono)', color: 'var(--accent)', background: 'rgba(138,154,134,0.1)', padding: '2px 6px', borderRadius: 4 }}>
